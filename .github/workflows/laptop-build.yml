@@ -1,0 +1,30 @@
+name: Laptop build
+
+# Asks the laptop to pull and build this push right away: dispatches to
+# Mfficiency/laptop-builder (private), whose self-hosted runner on the laptop
+# runs the local build. Needs the secret LAPTOP_BUILD_TOKEN (fine-grained,
+# laptop-builder only, Contents: read and write); skips without it (the
+# laptop's 10-minute catch-up still builds).
+# Each branch is its own channel: the laptop builds that branch's APK
+# (tool/build.ps1 release) and publishes it as a GitHub release here.
+on:
+  push:
+    branches: [dev, staging, main]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ask the laptop to build
+        env:
+          GH_TOKEN: ${{ secrets.LAPTOP_BUILD_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::LAPTOP_BUILD_TOKEN is not set; the laptop's 10-minute catch-up builds instead."
+            exit 0
+          fi
+          gh api repos/Mfficiency/laptop-builder/dispatches -f event_type=build -f 'client_payload[app]=BestMusic' -f "client_payload[sha]=${GITHUB_SHA::7}" -f "client_payload[branch]=${GITHUB_REF_NAME}"

@@ -1,0 +1,19 @@
+name: flutter test
+
+on:
+  push:
+    branches: [dev, staging, main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.2'
+          channel: 'stable'
+      - run: flutter pub get
+      - run: flutter analyze --no-pub --no-fatal-infos
+      - run: flutter test --timeout 60s

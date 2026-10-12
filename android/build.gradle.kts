@@ -1,0 +1,61 @@
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    // The home_widget plugin pulls androidx.glance via a dynamic version,
+    // which now resolves to a 2026 alpha (glance-appwidget:1.3.0-alpha01)
+    // that requires compileSdk 37 and Android Gradle Plugin 9.1.0+. Pin
+    // Glance back to the latest stable release so the build works with the
+    // project's AGP 8.9.1 / compileSdk setup.
+    configurations.all {
+        resolutionStrategy {
+            force("androidx.glance:glance:1.1.1")
+            force("androidx.glance:glance-appwidget:1.1.1")
+            force("androidx.glance:glance-material3:1.1.1")
+        }
+    }
+}
+
+val newBuildDir: Directory = rootProject.layout.buildDirectory.dir("../../build").get()
+rootProject.layout.buildDirectory.value(newBuildDir)
+
+subprojects {
+    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
+    project.layout.buildDirectory.value(newSubprojectBuildDir)
+}
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+// home_widget 0.8.1 still compiles Kotlin at JVM target 1.8 while the androidx
+// libraries it inlines now ship JVM 11 bytecode, so :home_widget:compileReleaseKotlin
+// fails with "Cannot inline bytecode built with JVM target 11 into bytecode that
+// is being built with JVM target 1.8" (every Build APK run since 2026-07-28).
+// Align every plugin module with the app's JVM 11. afterEvaluate + configureEach
+// so these win over whatever the plugin's own build script sets.
+subprojects {
+    val alignJvmTarget = {
+        extensions.findByType<com.android.build.gradle.BaseExtension>()
+            ?.compileOptions?.apply {
+                sourceCompatibility = JavaVersion.VERSION_11
+                targetCompatibility = JavaVersion.VERSION_11
+            }
+        tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>()
+            .configureEach {
+                compilerOptions.jvmTarget
+                    .set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+            }
+    }
+    // The evaluationDependsOn(":app") above force-evaluates :app before this
+    // block runs; on an evaluated project afterEvaluate throws and AGP has
+    // already finalized compileOptions. Skip it — :app builds at JVM 11 via
+    // its own build script; only the plugin modules need the alignment.
+    if (!state.executed) {
+        afterEvaluate { alignJvmTarget() }
+    }
+}
+
+tasks.register<Delete>("clean") {
+    delete(rootProject.layout.buildDirectory)
+}

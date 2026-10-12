@@ -1,0 +1,52 @@
+name: best_music
+description: Best Music — music player, MP3 downloader and YouTube Subscriptions feed.
+publish_to: 'none'
+
+# x.y.z+build. Laptop channel builds (tool/build.ps1 release) override the
+# build number with BUILD_NUMBER; bump x.y.z with tool/bump_version.dart.
+version: 0.3.31+429
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.2
+  path_provider: ^2.1.2
+  flutter_markdown: ^0.6.10
+  home_widget: ^0.8.0
+  shared_preferences: ^2.2.2
+  file_selector: ^1.0.0
+  url_launcher: ^6.2.5
+  uuid: ^3.0.7
+  fl_chart: ^0.63.0
+  package_info_plus: ^8.0.2
+  permission_handler: ^11.3.1
+  http: ^1.2.2
+  share_plus: ^12.0.2
+  youtube_explode_dart: ^3.1.0
+  xml: ^6.5.0
+  html: ^0.15.4
+  just_audio: ^0.9.42
+  audio_service: ^0.18.15
+  id3_codec: ^1.0.3
+  crypto: ^3.0.3
+  # In-app updates (GitHub Releases, silent download, Android's installer):
+  # the shared package vendored from flutter_app_template — never edit it,
+  # refresh it with the template's tool/sync_updates_package.sh.
+  mfficiency_updates:
+    path: packages/mfficiency_updates
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - CHANGELOG.md
+    - assets/branding/

@@ -1776,3 +1776,105 @@ dialog → snackbar with the result), "Automatic backup" Off/Daily/Weekly
 `SegmentedButton` (turning it on asks for a folder if none and backs up right
 away), and "Backup folder". Tests: `test/music/music_backup_service_test.dart`,
 `test/music/music_settings_page_test.dart`.
+
+### Platform: widgets, share, "Play out loud?" (moved from BestToDo's §8/§9)
+
+These were part of BestToDo's widget and Android-platform chapters while Best Music was a
+flavor there; `lib/main_music.dart` is now `lib/main.dart`, and the music flavor's manifest
+overlay (`android/app/src/music/AndroidManifest.xml`) is now the app's only manifest
+(`android/app/src/main/AndroidManifest.xml`), with the same text/plain-only `ShareActivity`.
+
+- **Music mini widget** (`MusicMiniWidgetProvider.kt`, 0.2.61): a single play/pause button plus
+  a one-line title, nothing else. **Music controls widget** (`MusicControlsWidgetProvider.kt`,
+  0.2.61): the same, plus skip-previous and (0.2.63) skip-next buttons. Both differ from every
+  other widget here: their buttons don't call into Dart at all (there is no in-memory
+  `MusicAudioHandler` a separate background isolate could reach — unlike the on-disk task/alarm
+  lists, playback state lives in the running foreground service). Instead `MusicWidgetIntents.kt`
+  builds an explicit `ACTION_MEDIA_BUTTON` broadcast (`KEYCODE_MEDIA_PLAY_PAUSE`/
+  `KEYCODE_MEDIA_PREVIOUS`/`KEYCODE_MEDIA_NEXT`) targeted straight at `audio_service`'s own
+  `MediaButtonReceiver` — the same path a Bluetooth headset or wired remote uses — so the buttons
+  work whenever the Music Player's playback service is alive, in the foreground or not.
+  `MusicWidgetService` (`lib/services/music_widget_service.dart`) only pushes the display data
+  (title/artist/playing) by subscribing to the audio handler's `mediaItem`/`playbackState`
+  streams; tapping the title opens the app (`besttodomusic://open`). Best Music only since
+  0.2.98 (receivers declared in the `music` flavor manifest) — see §10.6e/§10.6n.
+
+**Song-link share routing** (0.2.60): before presenting `QuickAddSharePage`, `main.dart`
+runs the share's text (or subject) through `detectMusicShareLink`
+(`lib/services/music_share_link.dart`) looking for a Spotify track link
+(`open.spotify.com/track/...`), a Shazam track link (`shazam.com/track|song/...`), or a
+YouTube video/playlist link (the same patterns `Mp3DownloaderService` already
+recognizes). A match routes straight into `Mp3DownloaderPage(sharedLink: ...)` instead of
+the task editor, skipping the quick-add flow entirely — the share's caption text (with
+the link itself removed, and boilerplate like "I used Shazam to discover" stripped) is
+kept as a `textHint`. On open, the page resolves the link into a search query via
+`MusicLinkResolverService.resolveSearchQuery`: a YouTube link passes through unchanged
+(the downloader's existing direct-URL path resolves and downloads it immediately, no
+picker); a Spotify/Shazam link uses the caption `textHint` when there is one, otherwise
+fetches Spotify's public `open.spotify.com/oembed` endpoint (`title` + `author_name`, no
+API key) or parses the Shazam page's `og:title`/`<title>` (via the `html` package,
+stripping the trailing " | Shazam") — either way the resolved text feeds the same
+`_submit()` a typed query uses, landing on the usual up-to-5-candidate picker. A failed
+lookup with no caption to fall back on shows an error (`MusicLinkResolveException`)
+rather than hanging. `Mp3DownloaderPage` swaps its normal Tools app bar for one with a
+"Find & Download Song" title and a Close button (`_finishShare`) that calls
+`ShareIntentService.returnToPreviousApp` and pops, same as `QuickAddSharePage`'s
+Save/Discard; a bare back-gesture dismissal does the same from `dispose()`. Tests:
+`test/tools/music_share_link_test.dart`,
+`test/tools/mp3_downloader_test.dart` ("opened from a share (sharedLink)").
+
+**"Play out loud?" confirmation** (Best Music 0.2.91):
+`SpeakerPlayGuard.confirmPlay` (`lib/services/speaker_play_guard.dart`) runs before every
+UI play entry point — `MusicPlayerPage` Shuffle play and `_play` (tap a song / Play / play a
+playlist), the mini player's and Now Playing's play button. It shows a "Play out loud?"
+Cancel/Play dialog only when `Config.musicConfirmSpeakerPlay` (default on; Music Settings →
+"Ask before playing out loud") is set, nothing is playing right now, and the
+`besttodo/audio_output` channel's `isExternalOutputConnected` (MainActivity:
+`AudioManager.getDevices(GET_DEVICES_OUTPUTS)` has any type besides built-in speaker/
+earpiece/speaker-safe/telephony/remote-submix/unknown — i.e. no Bluetooth, wired/USB
+headset, car, HDMI) returns false. Off Android or on a channel error it never asks.
+Hardware media buttons and the notification are untouched (a headset button implies a
+headset anyway). Tests: `test/music/speaker_play_guard_test.dart`.
+*0.3.19 gaps closed*: "nothing is playing" now means not **audible** —
+`MusicAudioHandler.isAudible` = `_player.playing && _audibleSinceLoad`, the latter set when
+the player state is playing+ready and cleared at the start of every `_playCurrent` — because
+`playbackState.playing` is already true while a video is still being resolved/buffered, so
+switching to music then skipped the question. The guard now also runs in
+`switchSessionAndShow` ("Back to music/videos" pill, mini player and Now Playing switch;
+dialog on the navigator's context, Cancel = no switch), the Subscriptions feed's `_play`
+(tap, swipe/long-press "Play", options-sheet Play, online search results) and Songs by
+BPM's `_play`. **Home-screen widgets**: their play/pause button is now a `PendingIntent`
+for `MusicPlayGuardActivity` (translucent, `taskAffinity=""`, `noHistory`, excluded from
+Recents) instead of the bare media-button broadcast: when the widget data says playing,
+`music_confirm_speaker` (written by `MusicWidgetService` on attach, with every sync and when
+the setting is toggled) is false, or `AudioOutputs.isExternalConnected` (the shared helper
+MainActivity's channel now uses too) — it sends the play/pause broadcast
+(`MusicWidgetIntents.playPauseBroadcast`) and finishes invisibly; otherwise it shows a
+native "Play out loud?" AlertDialog over the home screen (Play → broadcast; Cancel/outside →
+nothing). Skip buttons still broadcast directly.
+
+**Best Music share-to-download** (Best Music 0.2.91): Best Music uses the same native path
+(`ShareActivity` → `MainActivity` → `besttodo/share` → `ShareIntentService`), hooked up in
+`lib/main_music.dart`'s `_BestMusicAppState` with the same one-at-a-time share queue as
+`main.dart`. Since everything shared into a music app is a song to find, it routes through
+`detectBestMusicShare` instead: Spotify/Shazam/YouTube exactly as above, plus any *other*
+link (`MusicLinkSource.otherLink` — Apple Music, Deezer, SoundCloud, ...; caption first,
+else the page's `og:title`/`<title>` minus a short trailing "| Site") and plain text such
+as "Song - Artist" (`MusicLinkSource.text`, searched as-is). Only a blank (file-only)
+share is dropped, straight back to the sharing app. Best Music opens
+`Mp3DownloaderPage(sharedLink: ..., autoDownloadTopMatch: true)`: a share that resolves to
+a *search* queues the top result immediately (no tap needed) and keeps the other
+candidates listed under "Downloading the top match. Wrong song? Tap the right one below
+instead." — tapping another candidate cancels the auto-picked job (`Mp3DownloadManager.
+cancel`) and queues that one. BestToDo keeps the plain picker (flag off). After a download
+lands inside the library folder (`Config.musicFolder`, defaulting to the MP3 download folder
+when unset — same rule as `MusicPlayerPage.initState`), `MusicDownloadLibrarySync`
+(`lib/services/music_download_library_sync.dart`) rescans the library once the download
+queue goes idle, so the song is playable without a manual Rescan; only completions seen
+after `attach()` count, never the persisted history. The music flavor's
+`android/app/src/music/AndroidManifest.xml` replaces `ShareActivity` (`tools:node=
+"replace"`) with a text/plain-only filter, so Best Music isn't offered for images/PDFs.
+Tests: `test/tools/music_share_link_test.dart` (`detectBestMusicShare`, other-link/text
+resolving), `test/tools/mp3_downloader_test.dart` ("autoDownloadTopMatch (Best Music)"),
+`test/music/music_download_library_sync_test.dart`, `test/update/music_build_wiring_test.dart`
+(manifest overlay).

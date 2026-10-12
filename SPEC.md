@@ -1227,7 +1227,12 @@ Unsubscribe (+ Undo snackbar); app-bar "Import from Tubular/NewPipe" opens a `.j
 (`{"subscriptions":[{"service_id":0,"url":...,"name":...}]}`, `parseNewPipeSubscriptions`):
 non-YouTube services are dropped, `/channel/UC...` URLs map directly, `@handle`/`/user/` URLs
 are resolved through `youtube_explode_dart`, anything else counts as skipped; already
-subscribed channels are counted, not duplicated.
+subscribed channels are counted, not duplicated. App-bar "Add channels by name" (0.3.32) opens a
+dialog for a pasted list, one channel name per line (`parseChannelNameList`: bullets/numbering
+stripped, blanks and case-insensitive repeats dropped); `importChannelNames` runs each through
+`searchChannels` (4 at a time, so `@handles`/URLs work too), takes the result whose name matches
+exactly ignoring case, else the top result, subscribes the new ones in one save, fetches their
+videos, and the snackbar lists the names nothing was found for.
 
 **Playback** — `TrackSource.youtube` (`Track.youtube`: id `youtube:<videoId>`, `remoteId` =
 video id, `artist` = channel, new `Track.artUrl` = `hqdefault.jpg`, also sent as the

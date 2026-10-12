@@ -19,12 +19,14 @@ class ChannelFetchResult {
   final List<FeedVideo> videos;
 }
 
-/// Outcome of [YoutubeFeedService.importNewPipe].
+/// Outcome of [YoutubeFeedService.importNewPipe] and
+/// [YoutubeFeedService.importChannelNames].
 class SubscriptionImportResult {
   const SubscriptionImportResult({
     required this.added,
     required this.alreadySubscribed,
     required this.skipped,
+    this.notFound = const [],
   });
 
   final int added;
@@ -32,6 +34,23 @@ class SubscriptionImportResult {
 
   /// Entries that weren't YouTube channels or couldn't be resolved.
   final int skipped;
+
+  /// The names [YoutubeFeedService.importChannelNames] found no channel
+  /// for (also counted in [skipped]).
+  final List<String> notFound;
+}
+
+/// The channel names in a pasted list: one per line, list bullets and
+/// numbering stripped, blanks and repeats (ignoring case) dropped.
+List<String> parseChannelNameList(String text) {
+  final seen = <String>{};
+  return [
+    for (final line in const LineSplitter().convert(text))
+      for (final name in [
+        line.trim().replaceFirst(RegExp(r'^([-*•]|\d+[.)])\s+'), '').trim()
+      ])
+        if (name.isNotEmpty && seen.add(name.toLowerCase())) name,
+  ];
 }
 
 /// Best Music's Subscriptions feed (SPEC.md §10.6m): the YouTube channels
@@ -402,6 +421,63 @@ class YoutubeFeedService {
     await _save();
     return SubscriptionImportResult(
         added: added, alreadySubscribed: already, skipped: skipped);
+  }
+
+  /// Subscribes to a pasted list of channel names ([parseChannelNameList]):
+  /// each is searched with [searchChannels] (so `@handles` and channel URLs
+  /// work too) and the result whose name matches exactly, ignoring case, is
+  /// taken — else the top result.
+  Future<SubscriptionImportResult> importChannelNames(String text) async {
+    final names = parseChannelNameList(text);
+    final found = List<YoutubeChannel?>.filled(names.length, null);
+    const batch = 4;
+    for (var start = 0; start < names.length; start += batch) {
+      final end = (start + batch).clamp(0, names.length);
+      await Future.wait([
+        for (var i = start; i < end; i++)
+          () async {
+            try {
+              final results = await searchChannels(names[i]);
+              if (results.isEmpty) return;
+              final wanted = names[i].toLowerCase();
+              found[i] = results.firstWhere(
+                (c) => c.name.toLowerCase() == wanted,
+                orElse: () => results.first,
+              );
+            } catch (e) {
+              _log('Import: could not find "${names[i]}": $e');
+            }
+          }(),
+      ]);
+    }
+    var added = 0, already = 0;
+    final notFound = <String>[];
+    final current = {for (final c in subscriptions.value) c.id: c};
+    final newChannels = <YoutubeChannel>[];
+    for (var i = 0; i < names.length; i++) {
+      final channel = found[i];
+      if (channel == null) {
+        notFound.add(names[i]);
+      } else if (current.containsKey(channel.id)) {
+        already++;
+      } else {
+        current[channel.id] = channel;
+        newChannels.add(channel);
+        added++;
+      }
+    }
+    subscriptions.value = current.values.toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    _log('Imported channel names: $added added, $already already there, '
+        '${notFound.length} not found');
+    await _save();
+    if (newChannels.isNotEmpty) unawaited(_refreshChannels(newChannels));
+    return SubscriptionImportResult(
+      added: added,
+      alreadySubscribed: already,
+      skipped: notFound.length,
+      notFound: notFound,
+    );
   }
 
   /// Resolves an `@handle` or `/user/` channel URL to its `UC...` id.

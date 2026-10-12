@@ -414,6 +414,40 @@ void main() {
       expect(again.added, 0);
       expect(again.alreadySubscribed, 2);
     });
+
+    test('parseChannelNameList strips bullets, blanks and repeats', () {
+      expect(
+        parseChannelNameList(
+            '- Lofi Girl\r\n\n  2. Earth, Wind & Fire \n* lofi girl\n• Chillhop'),
+        ['Lofi Girl', 'Earth, Wind & Fire', 'Chillhop'],
+      );
+    });
+
+    test('importChannelNames prefers an exact name, counts misses', () async {
+      service.fetchOverride = (_) async => const ChannelFetchResult([]);
+      service.searchOverride = (query) async => switch (query) {
+            'Lofi Girl' => const [
+                YoutubeChannel(
+                    id: 'UClofifanlofifanlofifanl', name: 'Lofi Girl Fan'),
+                YoutubeChannel(id: 'UClofigirllofigirllofigi', name: 'Lofi Girl'),
+              ],
+            'Chillhop' => const [
+                YoutubeChannel(
+                    id: 'UCchillhopmusicchillhopm', name: 'Chillhop Music'),
+              ],
+            _ => const <YoutubeChannel>[],
+          };
+      final first =
+          await service.importChannelNames('Lofi Girl\nChillhop\nNobody Here');
+      expect(first.added, 2);
+      expect(first.notFound, ['Nobody Here']);
+      expect(service.subscriptions.value.map((c) => c.name),
+          ['Chillhop Music', 'Lofi Girl']);
+
+      final again = await service.importChannelNames('Lofi Girl');
+      expect(again.added, 0);
+      expect(again.alreadySubscribed, 1);
+    });
   });
 
   test('refresh merges channels newest first and keeps a failed one cached',

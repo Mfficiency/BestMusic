@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.32] - 2026-10-12
+- Subscriptions → Channels: new 'Add channels by name' button — paste a list of channel names, one per line, and Best Music subscribes to all of them at once (it tells you which names it couldn't find).
+
 ## [0.3.31] - 2026-10-12
 - Best Music now has its own home on GitHub (Mfficiency/BestMusic) instead of being built from BestToDo's. Nothing changes on your phone: same app, same settings, library, playlists, subscriptions, wishlist and widgets, and updates keep arriving on their own — from the new place from now on.
 - Wishlist: items you tick off now stay in the list (crossed out) instead of disappearing the next day. The tag picker suggests the tags you already use on other items.

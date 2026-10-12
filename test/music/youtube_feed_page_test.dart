@@ -367,6 +367,25 @@ void main() {
     expect(service.subscriptions.value, isEmpty);
   });
 
+  testWidgets('pasting channel names subscribes to each', (tester) async {
+    service.fetchOverride = (_) async => const ChannelFetchResult([]);
+    service.searchOverride = (query) async => query == 'Missing'
+        ? const []
+        : [YoutubeChannel(id: 'UC$query'.padRight(24, 'x'), name: query)];
+    await tester.pumpWidget(const MaterialApp(home: YoutubeChannelsPage()));
+    await tester.tap(find.byTooltip('Add channels by name'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.descendant(
+            of: find.byType(AlertDialog), matching: find.byType(TextField)),
+        'Alpha\nBeta\nMissing');
+    await tester.tap(find.widgetWithText(FilledButton, 'Subscribe'));
+    await tester.pumpAndSettle();
+    expect(service.subscriptions.value.map((c) => c.name), ['Alpha', 'Beta']);
+    expect(find.text('Subscribed to 2 channels. Not found: Missing'),
+        findsOneWidget);
+  });
+
   testWidgets('a channel\'s "Check for new videos" fetches just that channel',
       (tester) async {
     service.subscriptions.value = [_channel];

@@ -85,6 +85,30 @@ class _YoutubeChannelsPageState extends State<YoutubeChannelsPage> {
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _importNames() async {
+    final text = await showDialog<String>(
+      context: context,
+      builder: (_) => const _ChannelNamesDialog(),
+    );
+    if (text == null || text.trim().isEmpty || !mounted) return;
+    setState(() => _importing = true);
+    String message;
+    try {
+      final result = await _service.importChannelNames(text);
+      message = 'Subscribed to ${result.added} channel'
+          '${result.added == 1 ? '' : 's'}'
+          '${result.alreadySubscribed > 0 ? ', ${result.alreadySubscribed} already subscribed' : ''}'
+          '${result.notFound.isNotEmpty ? '. Not found: ${result.notFound.join(', ')}' : ''}';
+    } catch (e) {
+      message = "Couldn't import: $e";
+    } finally {
+      if (mounted) setState(() => _importing = false);
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _unsubscribe(YoutubeChannel channel) async {
     await _service.unsubscribe(channel.id);
     if (!mounted) return;
@@ -131,6 +155,11 @@ class _YoutubeChannelsPageState extends State<YoutubeChannelsPage> {
         context,
         title: 'Channels',
         actions: [
+          IconButton(
+            tooltip: 'Add channels by name',
+            icon: const Icon(Icons.playlist_add),
+            onPressed: _importing ? null : _importNames,
+          ),
           IconButton(
             tooltip: 'Import from Tubular/NewPipe',
             icon: const Icon(Icons.file_upload_outlined),
@@ -200,7 +229,8 @@ class _YoutubeChannelsPageState extends State<YoutubeChannelsPage> {
                     child: Padding(
                       padding: EdgeInsets.all(32),
                       child: Text(
-                        'Search for a channel above, or import your '
+                        'Search for a channel above, paste a list of '
+                        'channel names (the list button), or import your '
                         'subscriptions from Tubular/NewPipe (Settings → '
                         'Content → Export subscriptions there, then the '
                         'upload button here).',
@@ -255,6 +285,52 @@ class _YoutubeChannelsPageState extends State<YoutubeChannelsPage> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Asks for channel names, one per line; pops the text (null on cancel).
+class _ChannelNamesDialog extends StatefulWidget {
+  const _ChannelNamesDialog();
+
+  @override
+  State<_ChannelNamesDialog> createState() => _ChannelNamesDialogState();
+}
+
+class _ChannelNamesDialogState extends State<_ChannelNamesDialog> {
+  final TextEditingController _text = TextEditingController();
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add channels by name'),
+      content: TextField(
+        controller: _text,
+        autofocus: true,
+        minLines: 6,
+        maxLines: 12,
+        keyboardType: TextInputType.multiline,
+        decoration: const InputDecoration(
+          hintText: 'One channel per line',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _text.text),
+          child: const Text('Subscribe'),
+        ),
+      ],
     );
   }
 }

@@ -648,7 +648,9 @@ page in the same sense BestToDo's home page is: `buildSubpageAppBar`'s "Menu" bu
 every page the drawer pushes: MP3 Downloader, Wishlist, Settings, Changelog, Startup Times, App
 Logs, About) opens it via that shared key, and its own app bar (no `buildSubpageAppBar`, since as the
 root route it has no "Back to Home" to offer) gets Flutter's automatic drawer-hamburger button
-for free from `Scaffold.drawer` being non-null. `lib/ui/music_settings_page.dart` is a
+for free from `Scaffold.drawer` being non-null. Drawer order (0.3.33): Home · Settings ·
+Subscriptions · **Tools** (a collapsed `ExpansionTile` holding Songs by BPM, MP3 Downloader and
+Wishlist) · Changelog · About · App Logs · Startup Times. `lib/ui/music_settings_page.dart` is a
 standalone settings page — the music folder picker and excluded-subfolders dialog are
 reimplemented from BestToDo's Settings → Music Player section (`settings_page.dart`) since that
 page is one monolithic widget tightly coupled to BestToDo's full settings list. Since Best
@@ -1084,9 +1086,9 @@ it fires) or end-of-song (`MusicAudioHandler`'s completion listener calls `consu
 when set, pauses and rewinds instead of advancing). `extend()` adds time, `cancel()` turns it off.
 One picker, `showSleepTimerSheet` (`lib/ui/sleep_timer_sheet.dart`: 5/10/15/30/45/60/90 min, End of
 current song, Custom… minutes, plus Add 10 minutes / Turn off while active), opened from: Now
-Playing's app bar (`SleepTimerButton`, tooltip "Sleep timer" / "Sleep timer: 23 min"), the Best
-Music drawer ("Sleep timer" with time left), Settings ("Sleep timer" row), and the mini player
-(a bedtime + time-left badge while running, and long-press on the bar). The timer is in-memory —
+Playing's app bar (`SleepTimerButton`, tooltip "Sleep timer" / "Sleep timer: 23 min"), Settings
+("Sleep timer" row), and the mini player (a bedtime + time-left badge while running, and
+long-press on the bar). The Best Music drawer no longer has a "Sleep timer" entry (0.3.33). The timer is in-memory —
 not restored after the app process is killed.
 
 **Always-visible mini player + resume after restart** (0.2.88): `MusicMiniPlayerBar`
@@ -1526,8 +1528,8 @@ column (between `year` and `tags`; blank cell = keep, like the other columns). A
 `metadataEdited` track keeps the hand-set BPM but fills a missing one from the tag
 (`previous.bpm ?? track.bpm`).
 
-**Page** — `lib/ui/bpm_range_page.dart` (`BpmRangePage`), from Best Music's drawer ("Songs by
-BPM") and the Playlists tab's third row (also in BestToDo's Music Player). With no song
+**Page** — `lib/ui/bpm_range_page.dart` (`BpmRangePage`), from Best Music's drawer (Tools →
+"Songs by BPM") and the Playlists tab's third row (also in BestToDo's Music Player). With no song
 having a BPM it explains the three ways to add one. Otherwise: a row of preset `InputChip`s
 ("<name> · min–max"; tap applies the range — with a snackbar if it reaches past the
 library's range — delete icon removes it with Undo), a big "min – max BPM" label, a

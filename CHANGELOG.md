@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.33] - 2026-10-13
+- Menu: Songs by BPM, the MP3 Downloader and the Wishlist now live together under a new 'Tools' section (tap it to open). The sleep timer is gone from the menu — it is still on the Now Playing screen, the mini player and in Settings.
+
 ## [0.3.32] - 2026-10-12
 - Subscriptions → Channels: new 'Add channels by name' button — paste a list of channel names, one per line, and Best Music subscribes to all of them at once (it tells you which names it couldn't find).
 

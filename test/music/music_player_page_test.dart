@@ -159,7 +159,7 @@ void main() {
       expect(find.byTooltip('Back to Home'), findsNothing);
     });
 
-    testWidgets('drawer lists Downloader, Settings, Changelog, Startup '
+    testWidgets('drawer lists Settings, Tools, Changelog, Startup '
         'Times, App Logs and About', (tester) async {
       Config.musicFolder = '/does/not/matter/for/this/test';
       MusicLibraryService.instance.tracks.value = [
@@ -178,7 +178,23 @@ void main() {
 
       expect(find.textContaining('Best Music v'), findsOneWidget);
       expect(find.text('Home'), findsOneWidget);
-      expect(find.text('MP3 Downloader'), findsOneWidget);
+      // Songs by BPM, MP3 Downloader and Wishlist sit in the collapsed
+      // Tools section; the sleep timer is not in the menu at all.
+      expect(find.text('Tools'), findsOneWidget);
+      expect(find.text('MP3 Downloader'), findsNothing);
+      expect(find.text('Sleep timer'), findsNothing);
+      await tester.tap(find.text('Tools'));
+      await tester.pumpAndSettle();
+      for (final label in const [
+        'Songs by BPM',
+        'MP3 Downloader',
+        'Wishlist',
+      ]) {
+        expect(
+            find.descendant(
+                of: find.byType(Drawer), matching: find.text(label)),
+            findsOneWidget);
+      }
       expect(find.text('Settings'), findsOneWidget);
       expect(find.text('Changelog'), findsOneWidget);
       expect(find.text('Startup Times'), findsOneWidget);
@@ -190,6 +206,7 @@ void main() {
         for (final label in const [
           'Home',
           'Settings',
+          'Tools',
           'MP3 Downloader',
           'Changelog',
           'About',

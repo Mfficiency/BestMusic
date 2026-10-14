@@ -22,6 +22,14 @@ class Track {
   /// or the 11-character YouTube video id ([TrackSource.youtube]).
   final String? remoteId;
 
+  /// Where a [TrackSource.subsonic] song lives on the server, relative to
+  /// its music folder (`Chill/Kygo - Stay.mp3`) — the server tab's folders.
+  /// Null for other sources and servers that don't report real paths.
+  final String? remotePath;
+
+  /// File size in bytes, when the server reported it ([TrackSource.subsonic]).
+  final int? sizeBytes;
+
   /// Cover art URL (the video thumbnail for [TrackSource.youtube]); shown
   /// on Now Playing and handed to the system media notification. Null for
   /// local/Subsonic tracks, whose art isn't surfaced yet.
@@ -97,6 +105,8 @@ class Track {
     required this.source,
     this.filePath,
     this.remoteId,
+    this.remotePath,
+    this.sizeBytes,
     this.artUrl,
     this.youtubeSong = false,
     required this.title,
@@ -149,6 +159,8 @@ class Track {
 
   factory Track.subsonic({
     required String remoteId,
+    String? remotePath,
+    int? sizeBytes,
     required String title,
     String artist = '',
     String album = '',
@@ -161,6 +173,8 @@ class Track {
       id: 'subsonic:$remoteId',
       source: TrackSource.subsonic,
       remoteId: remoteId,
+      remotePath: remotePath,
+      sizeBytes: sizeBytes,
       title: title,
       artist: artist,
       album: album,
@@ -227,6 +241,8 @@ class Track {
       source: source,
       filePath: filePath,
       remoteId: remoteId,
+      remotePath: remotePath,
+      sizeBytes: sizeBytes,
       artUrl: artUrl,
       youtubeSong: youtubeSong,
       title: title ?? this.title,
@@ -249,6 +265,8 @@ class Track {
         'source': source.name,
         if (filePath != null) 'filePath': filePath,
         if (remoteId != null) 'remoteId': remoteId,
+        if (remotePath != null) 'remotePath': remotePath,
+        if (sizeBytes != null) 'sizeBytes': sizeBytes,
         if (artUrl != null) 'artUrl': artUrl,
         if (youtubeSong) 'youtubeSong': true,
         'title': title,
@@ -279,6 +297,8 @@ class Track {
       source: source,
       filePath: json['filePath'] as String?,
       remoteId: json['remoteId'] as String?,
+      remotePath: json['remotePath'] as String?,
+      sizeBytes: (json['sizeBytes'] as num?)?.round(),
       artUrl: json['artUrl'] as String?,
       youtubeSong: json['youtubeSong'] as bool? ?? false,
       title: json['title'] as String? ?? '',

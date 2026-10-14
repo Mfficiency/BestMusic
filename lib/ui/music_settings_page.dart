@@ -13,6 +13,8 @@ import '../services/app_updates.dart';
 import '../services/music_library_service.dart';
 import '../services/media_volume.dart';
 import '../services/music_sleep_timer.dart';
+import '../services/server_catalog.dart';
+import '../services/server_offline_store.dart';
 import '../services/subsonic_client.dart';
 import '../services/subsonic_library_sync.dart';
 import '../services/youtube_feed_service.dart';
@@ -676,6 +678,8 @@ class _MusicSettingsPageState extends State<MusicSettingsPage> {
       });
       await Config.save();
       await MusicLibraryService.instance.removeServerTracks();
+      await ServerCatalog.instance.clear();
+      await ServerOfflineStore.instance.clear();
     }
 
     final configured = SubsonicClient.instance.isConfigured;
@@ -720,29 +724,31 @@ class _MusicSettingsPageState extends State<MusicSettingsPage> {
           apply: (v) => Config.subsonicPassword = v,
         ),
       ),
-      if (configured) ...[
-        ListTile(
-          leading: const Icon(Icons.wifi_tethering),
-          title: const Text('Test connection'),
-          onTap: test,
+      ListTile(
+        enabled: configured,
+        leading: const Icon(Icons.wifi_tethering),
+        title: const Text('Test connection'),
+        onTap: test,
+      ),
+      ValueListenableBuilder<bool>(
+        valueListenable: SubsonicLibrarySync.instance.syncing,
+        builder: (context, syncing, _) => ListTile(
+          enabled: configured,
+          leading: syncing
+              ? const SizedBox.square(
+                  dimension: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.sync),
+          title: const Text('Sync now'),
+          subtitle: Text(!configured
+              ? 'Fill in the server address and user name first'
+              : last == null
+                  ? "Not synced yet — brings the server's songs into the library"
+                  : 'Last sync: ${_formatDateTime(last)}, '
+                      '${SubsonicLibrarySync.instance.serverSongCount} songs'),
+          onTap: syncing ? null : syncNow,
         ),
-        ValueListenableBuilder<bool>(
-          valueListenable: SubsonicLibrarySync.instance.syncing,
-          builder: (context, syncing, _) => ListTile(
-            leading: syncing
-                ? const SizedBox.square(
-                    dimension: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.sync),
-            title: const Text('Sync now'),
-            subtitle: Text(last == null
-                ? "Not synced yet — brings the server's songs into the library"
-                : 'Last sync: ${_formatDateTime(last)}, '
-                    '${SubsonicLibrarySync.instance.serverSongCount} songs'),
-            onTap: syncing ? null : syncNow,
-          ),
-        ),
-      ],
+      ),
       ListTile(
         leading: const Icon(Icons.nightlight_outlined),
         title: const Text('Automatic sync'),

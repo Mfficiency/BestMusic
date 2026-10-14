@@ -18,6 +18,7 @@ import 'services/video_audio_cache.dart';
 import 'services/music_playlist_service.dart';
 import 'services/music_share_link.dart';
 import 'services/share_intent_service.dart';
+import 'services/server_offline_store.dart';
 import 'services/startup_time_service.dart';
 import 'services/subsonic_library_sync.dart';
 import 'services/youtube_feed_service.dart';
@@ -48,6 +49,7 @@ Future<void> main() async {
   // Before the player: feed playback reads its settings (SponsorBlock)
   // and resume positions.
   await _initStep('subscriptions feed', YoutubeFeedService.instance.load);
+  await _initStep('kept server songs', ServerOfflineStore.instance.load);
   await _initStep('music player', MusicPlayerService.init);
   await _initStep('last played', MusicPlayerService.restoreLastSession);
   // Cached Subscriptions videos are kept a week after last play.

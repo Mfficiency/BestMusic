@@ -10,6 +10,7 @@ import '../models/track.dart';
 import '../services/m3u_playlist_service.dart';
 import '../services/mp3_downloader_service.dart';
 import '../services/music_library_service.dart';
+import '../services/server_catalog.dart';
 import '../services/music_player_service.dart';
 import '../services/speaker_play_guard.dart';
 import '../services/music_playlist_service.dart';
@@ -31,6 +32,7 @@ import 'music_wishlist_page.dart';
 import 'now_playing_page.dart';
 import 'rule_playlist_editor_page.dart';
 import 'startup_times_page.dart';
+import 'server_tab.dart';
 import 'subpage_app_bar.dart';
 import 'track_metadata_page.dart';
 import 'youtube_feed_page.dart';
@@ -63,7 +65,7 @@ class _MusicPlayerPageState extends State<MusicPlayerPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 6, vsync: this);
+    _tabController = TabController(length: 7, vsync: this);
     // The MP3 Downloader's folder is the common case for where music already
     // lives, so default straight to it instead of asking the user to pick
     // the same folder twice.
@@ -341,6 +343,7 @@ class _MusicPlayerPageState extends State<MusicPlayerPage>
             Tab(text: 'Artists'),
             Tab(text: 'Tags'),
             Tab(text: 'Folders'),
+            Tab(text: 'Server'),
           ],
         ),
       ),
@@ -356,6 +359,7 @@ class _MusicPlayerPageState extends State<MusicPlayerPage>
                 _ArtistsTab(),
                 _TagsTab(),
                 _FoldersTab(),
+                ServerTab(),
               ],
             ),
           ),
@@ -752,10 +756,14 @@ class _TagsTab extends StatelessWidget {
 
 /// The folder (relative to [Config.musicFolder]) a local [track] lives in,
 /// for grouping in the Folders tab. Tracks right under the music folder
-/// itself group under "(Music folder)"; a Subsonic track (no [Track.filePath])
-/// groups under "Other".
+/// itself group under "(Music folder)"; a music server song groups under
+/// "Server/<its folder there>", anything else under "Other".
 String folderLabelOf(Track track) {
   final path = track.filePath;
+  if (track.source == TrackSource.subsonic) {
+    final folder = ServerCatalog.folderOf(track);
+    return folder.isEmpty ? 'Server' : 'Server/$folder';
+  }
   if (path == null) return 'Other';
   final root = MusicLibraryService.normalizePath(Config.musicFolder.trim());
   final normalized = MusicLibraryService.normalizePath(path);

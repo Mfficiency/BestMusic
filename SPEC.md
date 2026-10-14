@@ -536,6 +536,38 @@ so the plaintext password never goes on the wire (it is stored in plaintext on t
   once per window (`SubsonicLibrarySync.minGap` 12 h), while the app is running: at start, on
   resume and every 15 minutes. Sync now runs it right away. Playback needs no sync.
 
+**Server tab (Best Music 0.3.35)** (`lib/ui/server_tab.dart`, `lib/services/server_catalog.dart`,
+`server_offline_store.dart`, `server_upload_service.dart`): the music server's songs as folders,
+like OneDrive.
+- **Catalog:** every sync stores the server's full song list in `ServerCatalog`
+  (`server_catalog.json`), with each song's real folder path (`Track.remotePath`; the Pi's
+  Navidrome reports real paths, `[Subsonic] DefaultReportRealPath`) and size. The library gets
+  the same songs minus those already on the phone (`sameSong`: same file name, or same artist +
+  title normalised with lengths within 2 s, the rule the Pi's nightly clean-up uses;
+  `SameSongIndex` keeps it quick), so every song shows once. The Folders tab groups server songs
+  under `Server/<folder>`.
+- **The tab:** without a login it shows the login form (address prefilled
+  `http://hally.local:4533`, Connect = ping, save, sync). With one it shows a header (server,
+  song count, last sync, Sync now, Upload phone music), then folders and songs. Each has an
+  offline-state icon (online only / downloading / on this phone / partly) and a menu. Tapping a
+  song plays that folder from it.
+- **Always keep on this device / Free up space** (`ServerOfflineStore`, `server_offline.json`):
+  rules on folders and songs, and the nearest rule above a song wins. Kept songs download one at
+  a time (`/rest/download`, the original file, a background-work notification) into
+  `<documents>/server_music/<server path>`, and `MusicAudioHandler` plays that copy instead of
+  streaming. New songs in a kept folder download after the next sync; freed songs' copies are
+  deleted. Free up space also offers to delete the phone's own copies (music-folder files
+  matching songs in that folder, e.g. ones uploaded from here) after a confirm showing the MB.
+  The library then rescans and the server copies take their place.
+- **Upload phone music** (`ServerUploadService`): asks the Pi's upload service (the server's host,
+  port 4534, `mirror-music-upload` in the MagicMirror repo) which phone songs it lacks (`POST
+  /api/music/check`, same name and size anywhere, or the same path in `Phone/`). It then sends
+  them one at a time (`PUT /api/music/upload?path=<path under the music folder>`, streamed). Same
+  login: the Subsonic token on every request, checked by the Pi against Navidrome. They land in
+  the server's `Phone/` folder and appear after its nightly scan; its nightly clean-up moves
+  duplicates to a 30-day trash.
+- Android needs `usesCleartextTraffic` for the plain-http home server.
+
 **Home-screen widgets and notification/lock screen:** see §8 for the two widgets
 (`MusicMiniWidgetProvider`/`MusicControlsWidgetProvider`) and §9 for the `audio_service`
 manifest wiring. The system media notification and lock-screen controls (previous, play/pause,

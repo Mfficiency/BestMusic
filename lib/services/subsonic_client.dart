@@ -43,6 +43,10 @@ class SubsonicClient {
     return List.generate(8, (_) => chars[rand.nextInt(chars.length)]).join();
   }
 
+  /// Fresh token auth (`u`, `t`, `s`, `v`, `c`, `f`) for one request — also
+  /// what the MagicMirror Pi's upload service checks (`ServerUploadService`).
+  Map<String, String> authParams() => _authParams();
+
   Map<String, String> _authParams() {
     final salt = _randomSalt();
     final token =
@@ -71,6 +75,10 @@ class SubsonicClient {
   /// original file (`format=raw`), never a transcode.
   Uri streamUri(String songId) =>
       _buildUri('stream', {'id': songId, 'format': 'raw'});
+
+  /// The original file, for keeping a song on the device
+  /// (`ServerOfflineStore`).
+  Uri downloadUri(String songId) => _buildUri('download', {'id': songId});
 
   /// The `subsonic-response` of [endpoint], or null on any failure (network,
   /// HTTP status, wrong password — Subsonic answers those with `status:
@@ -145,8 +153,13 @@ class SubsonicClient {
     final durationSeconds = song['duration'] as num?;
     // OpenSubsonic servers (Navidrome, ...) send the song's BPM; 0 = unknown.
     final bpm = (song['bpm'] as num?)?.round();
+    // The real folder path when the server reports it (Navidrome:
+    // [Subsonic] DefaultReportRealPath).
+    final path = (song['path'] as String?)?.replaceAll(r'\', '/');
     return Track.subsonic(
       remoteId: song['id']?.toString() ?? '',
+      remotePath: path != null && path.isNotEmpty ? path : null,
+      sizeBytes: (song['size'] as num?)?.round(),
       title: song['title'] as String? ?? '',
       artist: song['artist'] as String? ?? '',
       album: song['album'] as String? ?? '',

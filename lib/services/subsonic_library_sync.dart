@@ -3,9 +3,10 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../config.dart';
-import '../models/track.dart';
 import 'log_service.dart';
 import 'music_library_service.dart';
+import 'server_catalog.dart';
+import 'server_offline_store.dart';
 import 'subsonic_client.dart';
 
 /// Brings the music server's songs (Settings → Music server) into the library.
@@ -44,6 +45,13 @@ class SubsonicLibrarySync {
   @visibleForTesting
   MusicLibraryService library = MusicLibraryService.instance;
 
+  @visibleForTesting
+  ServerCatalog catalog = ServerCatalog.instance;
+
+  /// Downloads for "keep on this device" after a sync; off in tests.
+  @visibleForTesting
+  bool syncOffline = true;
+
   static final RegExp _windowPattern =
       RegExp(r'^([01]\d|2[0-3]):([0-5]\d)-([01]\d|2[0-3]):([0-5]\d)$');
 
@@ -70,10 +78,19 @@ class SubsonicLibrarySync {
     return last == null || now.difference(last) >= minGap;
   }
 
-  /// Starts the automatic syncs (once, at app start).
+  /// Starts the automatic syncs (once, at app start), after putting the
+  /// last known server songs in the library and finishing any downloads
+  /// for "keep on this device".
   void start() {
     _timer ??= Timer.periodic(checkEvery, (_) => unawaited(maybeSync()));
-    unawaited(maybeSync());
+    unawaited(() async {
+      await catalog.load();
+      if (catalog.songs.value.isNotEmpty) {
+        await library.replaceServerTracks(catalog.songs.value);
+        await ServerOfflineStore.instance.sync();
+      }
+      await maybeSync();
+    }());
   }
 
   void stop() {
@@ -88,9 +105,12 @@ class SubsonicLibrarySync {
     return syncNow();
   }
 
-  /// Fetches the server's whole song list and puts it in the library. Null
-  /// when the server can't be reached (the library keeps what it had).
-  Future<int?> syncNow() => _running ??= _sync().whenComplete(() => _running = null);
+  /// Fetches the server's whole song list into [ServerCatalog] (the Server
+  /// tab) and the library (minus songs already on the phone), then updates
+  /// the songs kept on this device. Returns the server's song count; null
+  /// when the server can't be reached (everything keeps what it had).
+  Future<int?> syncNow() =>
+      _running ??= _sync().whenComplete(() => _running = null);
 
   Future<int?> _sync() async {
     if (!client.isConfigured) return null;
@@ -101,18 +121,19 @@ class SubsonicLibrarySync {
         LogService.add('Music', 'server sync: server not reachable');
         return null;
       }
-      final count = await library.replaceServerTracks(songs);
+      await catalog.replace(songs);
+      await library.replaceServerTracks(songs);
+      final count = songs.length;
       Config.subsonicLastSync = DateTime.now();
       await Config.save();
       LogService.add('Music', 'server sync: $count song(s)');
+      if (syncOffline) unawaited(ServerOfflineStore.instance.sync());
       return count;
     } finally {
       syncing.value = false;
     }
   }
 
-  /// How many server songs the library holds now.
-  int get serverSongCount => library.tracks.value
-      .where((t) => t.source == TrackSource.subsonic)
-      .length;
+  /// How many songs the server has (as of the last sync).
+  int get serverSongCount => catalog.songs.value.length;
 }

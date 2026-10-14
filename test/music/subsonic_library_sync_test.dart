@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:best_music/config.dart';
 import 'package:best_music/models/track.dart';
 import 'package:best_music/services/music_library_service.dart';
+import 'package:best_music/services/server_catalog.dart';
 import 'package:best_music/services/subsonic_client.dart';
 import 'package:best_music/services/subsonic_library_sync.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -37,7 +38,10 @@ MockClient _server(int total, {List<Uri>? log, bool failSecondPage = false}) {
     final q = request.url.queryParameters;
     if (request.url.path.endsWith('/rest/ping')) {
       return http.Response(
-          jsonEncode({'subsonic-response': {'status': 'ok'}}), 200);
+          jsonEncode({
+            'subsonic-response': {'status': 'ok'}
+          }),
+          200);
     }
     final count = int.parse(q['songCount'] ?? '20');
     final offset = int.parse(q['songOffset'] ?? '0');
@@ -72,6 +76,8 @@ void main() {
     Config.subsonicSyncWindow = Config.defaultSubsonicSyncWindow;
     Config.subsonicLastSync = null;
     library.resetForTest();
+    ServerCatalog.instance.resetForTest();
+    sync.syncOffline = false;
   });
 
   tearDown(() async {
@@ -96,7 +102,8 @@ void main() {
       final songs = await client.allSongs();
       expect(songs, hasLength(SubsonicClient.pageSize + 20));
       expect(log, hasLength(2));
-      expect(log.last.queryParameters['songOffset'], '${SubsonicClient.pageSize}');
+      expect(
+          log.last.queryParameters['songOffset'], '${SubsonicClient.pageSize}');
       expect(log.first.queryParameters['query'], '');
       final first = songs!.first;
       expect(first.source, TrackSource.subsonic);
@@ -161,8 +168,7 @@ void main() {
   });
 
   group('sync into the library', () {
-    test('adds server songs, keeps play counts, drops removed songs',
-        () async {
+    test('adds server songs, keeps play counts, drops removed songs', () async {
       client.httpClient = _server(3);
       expect(await sync.syncNow(), 3);
       expect(library.tracks.value, hasLength(3));
@@ -185,7 +191,8 @@ void main() {
     });
 
     test('a folder rescan keeps the server songs', () async {
-      final musicDir = await Directory.systemTemp.createTemp('bestmusic_music_');
+      final musicDir =
+          await Directory.systemTemp.createTemp('bestmusic_music_');
       try {
         await File('${musicDir.path}/local.mp3').writeAsBytes([0, 0, 0]);
         client.httpClient = _server(2);
@@ -194,8 +201,8 @@ void main() {
         final tracks = await library.rescan();
         expect(tracks.where((t) => t.source == TrackSource.subsonic),
             hasLength(2));
-        expect(tracks.where((t) => t.source == TrackSource.local),
-            hasLength(1));
+        expect(
+            tracks.where((t) => t.source == TrackSource.local), hasLength(1));
 
         Config.musicFolder = '';
         expect(await library.rescan(), hasLength(2));

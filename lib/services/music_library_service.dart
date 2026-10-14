@@ -12,6 +12,7 @@ import 'log_service.dart';
 import 'music_metadata_csv.dart';
 import 'music_metadata_extractor.dart';
 import 'music_online_metadata.dart';
+import 'server_catalog.dart';
 
 /// Scans [Config.musicFolder] and every subfolder for playable audio files,
 /// skipping anything under [Config.musicExcludedSubfolders]. Reads ID3 tags
@@ -281,11 +282,16 @@ class MusicLibraryService {
       tracks.value.where((t) => t.source == TrackSource.subsonic).toList();
 
   /// Replaces the music server's songs with [fresh] (the server's complete
-  /// song list), keeping the folder's songs. A song that was already there
+  /// song list), keeping the folder's songs. A server song that is also on
+  /// the phone ([sameSong]: uploaded from here, or copied both places) is
+  /// left out, so the library shows each song once. A song that was already there
   /// keeps its date added, play count and tags, and — when it was edited by
   /// hand — its edited fields, the same way [rescan] treats files. Songs no
-  /// longer on the server leave the library. Returns the server song count.
+  /// longer on the server leave the library. Returns how many server songs the library holds now.
   Future<int> replaceServerTracks(List<Track> fresh) async {
+    final onPhone = SameSongIndex(
+        tracks.value.where((t) => t.source == TrackSource.local));
+    fresh = [for (final t in fresh) if (onPhone.match(t) == null) t];
     final previousById = {for (final t in _serverTracks()) t.id: t};
     final now = DateTime.now();
     final merged = [
@@ -388,6 +394,8 @@ class MusicLibraryService {
       source: existing.source,
       filePath: existing.filePath,
       remoteId: existing.remoteId,
+      remotePath: existing.remotePath,
+      sizeBytes: existing.sizeBytes,
       title: title,
       artist: artist,
       album: album,
@@ -427,6 +435,8 @@ class MusicLibraryService {
         source: existing.source,
         filePath: existing.filePath,
         remoteId: existing.remoteId,
+        remotePath: existing.remotePath,
+        sizeBytes: existing.sizeBytes,
         title: row.title.isNotEmpty ? row.title : existing.title,
         artist: row.artist.isNotEmpty ? row.artist : existing.artist,
         album: row.album.isNotEmpty ? row.album : existing.album,

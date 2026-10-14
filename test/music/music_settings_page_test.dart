@@ -128,7 +128,10 @@ void main() {
     expect(find.text('Automatic sync'), findsOneWidget);
     expect(find.textContaining(Config.defaultSubsonicSyncWindow),
         findsOneWidget);
-    expect(find.text('Sync now'), findsNothing);
+    // Visible from the start, but asks for the login first.
+    expect(find.text('Sync now'), findsOneWidget);
+    expect(find.text('Fill in the server address and user name first'),
+        findsOneWidget);
 
     Config.subsonicServerUrl = 'http://hally.local:4533';
     Config.subsonicUsername = 'me';

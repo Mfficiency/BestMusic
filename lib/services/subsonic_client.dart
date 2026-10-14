@@ -2,27 +2,36 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../config.dart';
 import '../models/track.dart';
 
 /// Thin client for a self-hosted Subsonic/OpenSubsonic-compatible server
-/// (Navidrome, Airsonic, Gonic, …), configured in Settings → Music Player.
+/// (Navidrome, Airsonic, Gonic, …; e.g. the Navidrome on the MagicMirror Pi),
+/// configured in Settings → Music server.
 /// Auth follows the Subsonic API's token scheme: `token =
 /// md5(password + salt)`, sent alongside a fresh random `salt` on every
 /// request, so the plaintext password never goes on the wire.
 ///
-/// This is intentionally small — enough to browse/search and build a
-/// streaming URL — since the app's own local-folder library is the primary
-/// source; a server connection is an optional extra one.
+/// Small on purpose: ping, search, a paged list of every song (for
+/// `SubsonicLibrarySync`) and a streaming URL. Streams ask for the file as it
+/// is (`format=raw`), so a small server like a Raspberry Pi never transcodes.
 class SubsonicClient {
   SubsonicClient._();
 
   static final SubsonicClient instance = SubsonicClient._();
 
+  /// Songs per `search3` page when listing the whole library.
+  static const int pageSize = 500;
+
+  /// The HTTP client; tests swap in a `MockClient`.
+  @visibleForTesting
+  http.Client httpClient = http.Client();
+
   static const String apiVersion = '1.16.1';
-  static const String clientName = 'besttodo';
+  static const String clientName = 'bestmusic';
 
   bool get isConfigured =>
       Config.subsonicServerUrl.trim().isNotEmpty &&
@@ -58,44 +67,78 @@ class SubsonicClient {
     });
   }
 
-  /// The URL a track can be streamed from, for [Track.subsonic] tracks.
-  Uri streamUri(String songId) => _buildUri('stream', {'id': songId});
+  /// The URL a track can be streamed from, for [Track.subsonic] tracks: the
+  /// original file (`format=raw`), never a transcode.
+  Uri streamUri(String songId) =>
+      _buildUri('stream', {'id': songId, 'format': 'raw'});
+
+  /// The `subsonic-response` of [endpoint], or null on any failure (network,
+  /// HTTP status, wrong password — Subsonic answers those with `status:
+  /// failed`).
+  Future<Map<String, dynamic>?> _get(String endpoint,
+      [Map<String, String>? extra,
+      Duration timeout = const Duration(seconds: 15)]) async {
+    try {
+      final response =
+          await httpClient.get(_buildUri(endpoint, extra)).timeout(timeout);
+      if (response.statusCode != 200) return null;
+      final body = jsonDecode(utf8.decode(response.bodyBytes))
+          as Map<String, dynamic>;
+      final r = body['subsonic-response'] as Map<String, dynamic>?;
+      return r?['status'] == 'ok' ? r : null;
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// Verifies the server is reachable and the credentials are valid.
   Future<bool> ping() async {
     if (!isConfigured) return false;
-    try {
-      final response =
-          await http.get(_buildUri('ping')).timeout(const Duration(seconds: 10));
-      if (response.statusCode != 200) return false;
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
-      final subsonicResponse = body['subsonic-response'] as Map<String, dynamic>?;
-      return subsonicResponse?['status'] == 'ok';
-    } catch (_) {
-      return false;
-    }
+    return await _get('ping', null, const Duration(seconds: 10)) != null;
   }
 
   /// Full-text search across the server's library (artists/albums/songs),
   /// returning just the matching songs as [Track]s.
   Future<List<Track>> search(String query, {int count = 40}) async {
     if (!isConfigured || query.trim().isEmpty) return [];
-    try {
-      final response = await http
-          .get(_buildUri('search3', {'query': query, 'songCount': '$count'}))
-          .timeout(const Duration(seconds: 15));
-      if (response.statusCode != 200) return [];
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
-      final subsonicResponse = body['subsonic-response'] as Map<String, dynamic>?;
-      final result = subsonicResponse?['searchResult3'] as Map<String, dynamic>?;
-      final songs = result?['song'] as List<dynamic>? ?? [];
-      return songs
-          .whereType<Map>()
-          .map((s) => _songToTrack(Map<String, dynamic>.from(s)))
-          .toList();
-    } catch (_) {
-      return [];
+    final r = await _get('search3',
+        {'query': query, 'songCount': '$count', 'artistCount': '0', 'albumCount': '0'});
+    return _songs(r);
+  }
+
+  /// Every song on the server, [pageSize] at a time (`search3` with an empty
+  /// query, which OpenSubsonic servers like Navidrome answer with the whole
+  /// library). Null when the server can't be reached or a page fails, so a
+  /// half-finished list never replaces a complete one.
+  Future<List<Track>?> allSongs() async {
+    if (!isConfigured) return null;
+    final all = <Track>[];
+    for (var offset = 0;; offset += pageSize) {
+      final r = await _get(
+          'search3',
+          {
+            'query': '',
+            'songCount': '$pageSize',
+            'songOffset': '$offset',
+            'artistCount': '0',
+            'albumCount': '0',
+          },
+          const Duration(seconds: 60));
+      if (r == null) return null;
+      final page = _songs(r);
+      all.addAll(page);
+      if (page.length < pageSize) return all;
     }
+  }
+
+  List<Track> _songs(Map<String, dynamic>? r) {
+    final result = r?['searchResult3'] as Map<String, dynamic>?;
+    final songs = result?['song'] as List<dynamic>? ?? [];
+    return songs
+        .whereType<Map>()
+        .map((s) => _songToTrack(Map<String, dynamic>.from(s)))
+        .where((t) => t.remoteId!.isNotEmpty)
+        .toList();
   }
 
   Track _songToTrack(Map<String, dynamic> song) {
@@ -109,6 +152,8 @@ class SubsonicClient {
       album: song['album'] as String? ?? '',
       durationMs:
           durationSeconds != null ? (durationSeconds * 1000).round() : null,
+      genre: song['genre'] as String? ?? '',
+      year: (song['year'] as num?)?.round(),
       bpm: bpm != null && bpm > 0 ? bpm : null,
     );
   }

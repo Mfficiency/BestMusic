@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.34] - 2026-10-14
+- Music server: stream your own music from a Navidrome server such as the one on the MagicMirror Pi. Settings → Music server takes the address, user name and password, tests the connection and brings the server's songs into your library next to your folder's songs. The song list syncs by itself at night (01:00–06:00, changeable) so the Pi does its heavy work while nobody looks at the mirror, or right away with 'Sync now'. Songs play straight from the server as the original file, never re-encoded.
+
 ## [0.3.33] - 2026-10-13
 - Menu: Songs by BPM, the MP3 Downloader and the Wishlist now live together under a new 'Tools' section (tap it to open). The sleep timer is gone from the menu — it is still on the Now Playing screen, the mini player and in Settings.
 

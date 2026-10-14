@@ -153,6 +153,8 @@ class Track {
     String artist = '',
     String album = '',
     int? durationMs,
+    String genre = '',
+    int? year,
     int? bpm,
   }) {
     return Track(
@@ -163,6 +165,8 @@ class Track {
       artist: artist,
       album: album,
       durationMs: durationMs,
+      genre: genre,
+      year: year,
       bpm: bpm,
     );
   }

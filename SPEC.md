@@ -512,18 +512,29 @@ basename (case/extension-insensitive — the common case, since a playlist made 
 device/app rarely carries this app's exact folder path), and reports what didn't match rather
 than silently dropping it. A match creates an ordinary (non-system) `MusicPlaylist`.
 
-**Self-hosted server prep** (`lib/services/subsonic_client.dart`'s `SubsonicClient`,
-`lib/models/track.dart`'s `TrackSource.subsonic`): a small Subsonic/OpenSubsonic API client
-(Navidrome, Airsonic, Gonic, … — the most widely supported self-hosted music protocol) for
-when a server is configured in Settings → Music Player (`Config.subsonicServerUrl/Username/
-Password`). Auth follows the Subsonic token scheme — `token = md5(password + fresh salt)` sent
-with every request, so the plaintext password never goes on the wire (it is still stored in
-plaintext on-device, same caveat as `Config.todoistApiToken`). Implemented so far: `ping()`
-(Settings' "Test connection"), `search()` (`search3`, full-text), and `streamUri(songId)` (the
-URL `MusicAudioHandler._resolveUri` streams a `TrackSource.subsonic` track from). A remote
-track is just another `Track` in the same queue/favorites/shuffle machinery as a local one —
-there is no separate "remote mode". Not yet wired into a server-browsing UI (artists/albums);
-that is the natural next step once a server is actually connected.
+**Music server (Best Music 0.3.34)** (`lib/services/subsonic_client.dart`'s `SubsonicClient`,
+`lib/services/subsonic_library_sync.dart`'s `SubsonicLibrarySync`, `TrackSource.subsonic`): a
+Subsonic/OpenSubsonic server (Navidrome, Airsonic, Gonic, …), typically the Navidrome on the
+MagicMirror Pi (`http://hally.local:4533`, see the MagicMirror repo's
+`headless-mirror/docs/music-server.md`). Settings → **Music server** has the address, user name
+and password (`Config.subsonicServerUrl/Username/Password`), Test connection (`ping`), Sync now,
+Automatic sync (`Config.subsonicSyncWindow`, default `01:00-06:00`) and Remove this server.
+Auth follows the Subsonic token scheme: `token = md5(password + fresh salt)` on every request,
+so the plaintext password never goes on the wire (it is stored in plaintext on the device).
+- **Streaming:** `streamUri(songId)` asks for `format=raw`, the original file, so a small
+  server never transcodes; `MusicAudioHandler._audioSourceFor` plays it like any other URL.
+- **Library:** a sync lists every song with `search3` (empty query, `songOffset` pages of
+  `SubsonicClient.pageSize` = 500; `allSongs()` returns null if any page fails, so a half list
+  never replaces a full one) and `MusicLibraryService.replaceServerTracks` puts them in the
+  same library as the folder's songs (id `subsonic:<id>`; date added, play count, tags and hand
+  edits kept across syncs; songs gone from the server leave). A folder `rescan` keeps the
+  server songs. Title, artist, album, genre, year and BPM come from the server's own tag scan;
+  the phone never downloads server songs to analyse them (`MusicMetadataEnricher` only handles
+  folder songs).
+- **When:** the full listing is the one bulk job the app asks of the server, so it runs on its
+  own only inside the sync window (the same night window the Pi's Navidrome scans in), at most
+  once per window (`SubsonicLibrarySync.minGap` 12 h), while the app is running: at start, on
+  resume and every 15 minutes. Sync now runs it right away. Playback needs no sync.
 
 **Home-screen widgets and notification/lock screen:** see §8 for the two widgets
 (`MusicMiniWidgetProvider`/`MusicControlsWidgetProvider`) and §9 for the `audio_service`
@@ -570,7 +581,8 @@ and the search fallback shows that message instead of a generic connection hint.
 **Settings → Music Player** (removed from BestToDo in 0.2.98, §10.6n; was `lib/ui/settings_page.dart`, section 16): folder picker (shares
 the `file_selector` `getDirectoryPath` pattern §4.4/§10.6d use), an "Excluded subfolders"
 dialog populated from `MusicLibraryService.listSubfolders`, and the Subsonic server
-URL/username/password fields with Save/Test connection. `Config.featureKeys`/
+URL/username/password fields with Save/Test connection (in Best Music these are Settings →
+Music server since 0.3.34). `Config.featureKeys`/
 `startToolOptions` gained a `music_player` entry (`_ToolEntry` in `home_page.dart`, case in
 `_buildToolPage`), same wiring pattern as every other tool.
 

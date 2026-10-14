@@ -191,6 +191,16 @@ class Config {
   /// only).
   static String subsonicPassword = '';
 
+  /// When the server's song list may be fetched automatically ('HH:MM-HH:MM',
+  /// phone local time, may cross midnight) — see `SubsonicLibrarySync`. The
+  /// default matches the night window of the MagicMirror Pi's music server,
+  /// so the Pi does bulk work only while nobody looks at the mirror.
+  static String subsonicSyncWindow = defaultSubsonicSyncWindow;
+  static const String defaultSubsonicSyncWindow = '01:00-06:00';
+
+  /// When the server's song list was last fetched completely; null = never.
+  static DateTime? subsonicLastSync;
+
   static const _settingsFileName = 'settings.json';
 
   static Future<File> _getSettingsFile() async {
@@ -234,6 +244,9 @@ class Config {
       'subsonicServerUrl': subsonicServerUrl,
       'subsonicUsername': subsonicUsername,
       'subsonicPassword': subsonicPassword,
+      'subsonicSyncWindow': subsonicSyncWindow,
+      if (subsonicLastSync != null)
+        'subsonicLastSync': subsonicLastSync!.millisecondsSinceEpoch,
     };
   }
 
@@ -292,6 +305,12 @@ class Config {
         data['subsonicServerUrl'] as String? ?? subsonicServerUrl;
     subsonicUsername = data['subsonicUsername'] as String? ?? subsonicUsername;
     subsonicPassword = data['subsonicPassword'] as String? ?? subsonicPassword;
+    subsonicSyncWindow =
+        data['subsonicSyncWindow'] as String? ?? subsonicSyncWindow;
+    final lastSync = data['subsonicLastSync'];
+    if (lastSync is num) {
+      subsonicLastSync = DateTime.fromMillisecondsSinceEpoch(lastSync.round());
+    }
   }
 
   /// Persists the current settings to disk.

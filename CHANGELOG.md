@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.36] - 2026-10-14
+- Changelog: the version card shows the version and channel on top, then Downloaded, Installed and Last check with their dates lined up in one column; no icon and no pull-down hint
+
 ## [0.3.32] - 2026-10-12
 - Subscriptions → Channels: new 'Add channels by name' button — paste a list of channel names, one per line, and Best Music subscribes to all of them at once (it tells you which names it couldn't find).
 

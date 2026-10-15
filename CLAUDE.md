@@ -20,6 +20,9 @@ relates to BestToDo, where it came from).
   installs from before the split).
 - Version bump: `dart run tool/bump_version.dart <x.y.z> "<changelog entry>"` (pubspec.yaml +
   CHANGELOG.md).
+- Organizer (computer-side Python tool in `organizer/`, see its README and SPEC.md §10.6s):
+  `python -m unittest discover -s organizer/tests` (needs ffmpeg); run with
+  `python organizer/organizer.py`.
 - Live checks (network, not part of `flutter test`): `flutter test tool/check_mp3_download.dart`,
   `dart run tool/scan_music_metadata.dart`.
 
@@ -56,4 +59,8 @@ relates to BestToDo, where it came from).
 - Never dispose `TextEditingController`s right after `showDialog` returns; give the dialog its
   own StatefulWidget owning them.
 - Icon buttons carry tooltips; tests find them by tooltip.
+- Anything that can take more than 30 s shows `RemainingTimeText` ("hh:mm:ss remaining",
+  `lib/ui/remaining_time_text.dart`, on the updates package's `RemainingTime`) below its
+  progress; `EstimatedProgressBar(showRemaining: true)` does it for that bar, `TaskRemainingText`
+  for a service's `ValueNotifier<TaskProgress?>` (server upload/sync/keep). SPEC.md › Time left.
 - Don't introduce new deprecation warnings.

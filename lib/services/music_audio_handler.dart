@@ -9,11 +9,14 @@ import '../models/track.dart';
 import '../models/youtube_feed.dart';
 import 'media_volume.dart';
 import 'music_library_service.dart';
+import 'now_playing.dart';
 import 'music_playlist_service.dart';
+import 'play_history_service.dart';
 import 'music_resume_service.dart';
 import 'music_sleep_timer.dart';
 import 'sponsorblock_service.dart';
 import 'video_audio_cache.dart';
+import 'server_offline_store.dart';
 import 'subsonic_client.dart';
 import 'youtube_audio_source.dart';
 import 'youtube_feed_service.dart';
@@ -246,8 +249,8 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
   MediaItem _toMediaItem(Track t) => MediaItem(
         id: t.id,
         artUri: t.artUrl != null ? Uri.tryParse(t.artUrl!) : null,
-        title: t.title.isNotEmpty ? t.title : t.fileBaseName,
-        artist: t.artist.isNotEmpty ? t.artist : null,
+        title: t.displayTitle,
+        artist: t.displayArtist.isNotEmpty ? t.displayArtist : null,
         album: t.album.isNotEmpty ? t.album : null,
         duration: t.durationMs != null ? Duration(milliseconds: t.durationMs!) : null,
       );
@@ -257,6 +260,9 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
       case TrackSource.local:
         return ja.AudioSource.uri(Uri.file(track.filePath!));
       case TrackSource.subsonic:
+        // Kept on this device (Server tab): play the downloaded copy.
+        final kept = ServerOfflineStore.instance.localFileFor(track.remoteId!);
+        if (kept != null) return ja.AudioSource.uri(Uri.file(kept));
         return ja.AudioSource.uri(
             SubsonicClient.instance.streamUri(track.remoteId!));
       case TrackSource.youtube:
@@ -470,6 +476,7 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
     _resumePosition = position;
     queue.add(_queue.map(_toMediaItem).toList());
     mediaItem.add(_toMediaItem(currentTrack!));
+    NowPlaying.trackId.value = currentTrack!.id;
     playbackState.add(playbackState.value.copyWith(
       controls: notificationControls(false),
       androidCompactActionIndices: _compactIndices(),
@@ -505,6 +512,7 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
     final track = currentTrack;
     if (track == null) return;
     mediaItem.add(_toMediaItem(track));
+    NowPlaying.trackId.value = track.id;
     var startAt = _resumePosition;
     _resumePosition = null;
     // A feed video picks up where it was left (podcasts, long mixes).
@@ -515,13 +523,30 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
     _audibleSinceLoad = false;
     _persist();
     _loadSkipSegments(track);
+    final order = volumeOrder(MediaVolume.playingKind,
+        track.isFeedVideo ? VolumeKind.video : VolumeKind.music);
     try {
+      // Video → music: down to the music volume while the video still
+      // plays, then switch.
+      if (order == VolumeOrder.beforeSwitch) await _applyVolume(track);
+      // Music → video: the music stops now rather than playing on while
+      // the video is looked up.
+      if (order == VolumeOrder.afterSwitch) await _player.pause();
       final source = await _audioSourceFor(track);
       await _player.setAudioSource(source, initialPosition: startAt);
       _sourceLoaded = true;
       _loadedTrackId = track.id;
+      unawaited(PlayHistoryService.instance.record(track));
       await _applySpeed(track);
-      await _applyVolume(track);
+      if (order == VolumeOrder.afterSwitch) {
+        // Music → video: the video starts first, then the volume moves to
+        // the video's level.
+        unawaited(_player.play());
+        await _untilAudible();
+        await _applyVolume(track);
+      } else if (order == VolumeOrder.whenLoaded) {
+        await _applyVolume(track);
+      }
       // Keep a full copy of a video you start, so stopping halfway and
       // coming back later (even offline) is instant.
       if (track.isFeedVideo) {
@@ -539,6 +564,34 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
       // than getting stuck silently.
       await _advance(1, wrapWithReshuffle: true);
     }
+  }
+
+  /// When [_playCurrent] moves the phone volume, given the kind that was
+  /// playing ([MediaVolume.playingKind]) and the kind starting: from a
+  /// video to music the volume changes first and the song starts after;
+  /// from music to a video the video starts first and the volume changes
+  /// once it plays; otherwise (same kind, or nothing played before) right
+  /// after loading, as before.
+  static VolumeOrder volumeOrder(VolumeKind? playing, VolumeKind next) {
+    if (playing == VolumeKind.video && next == VolumeKind.music) {
+      return VolumeOrder.beforeSwitch;
+    }
+    if (playing == VolumeKind.music && next == VolumeKind.video) {
+      return VolumeOrder.afterSwitch;
+    }
+    return VolumeOrder.whenLoaded;
+  }
+
+  /// Waits until sound is actually coming out (playing and ready), at
+  /// most [timeout] — a video that stalls still gets its volume.
+  Future<void> _untilAudible(
+      {Duration timeout = const Duration(seconds: 10)}) async {
+    try {
+      await _player.playerStateStream
+          .firstWhere((s) =>
+              s.playing && s.processingState == ja.ProcessingState.ready)
+          .timeout(timeout);
+    } catch (_) {}
   }
 
   /// The last video speed picked — remembered in the feed settings.
@@ -639,8 +692,16 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
     await _player.seek(target);
   }
 
+  /// Next (Now Playing, notification, headset): counts as a skip of the
+  /// track being left — the end of a song advances via [_advance] instead.
   @override
-  Future<void> skipToNext() => _advance(1, wrapWithReshuffle: true);
+  Future<void> skipToNext() async {
+    final leaving = currentTrack;
+    if (leaving != null) {
+      unawaited(MusicLibraryService.instance.incrementSkipCount(leaving.id));
+    }
+    await _advance(1, wrapWithReshuffle: true);
+  }
 
   @override
   Future<void> skipToPrevious() => _advance(-1, wrapWithReshuffle: false);
@@ -726,13 +787,26 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
     await MusicPlaylistService.instance.toggleFavorite(track.id);
   }
 
-  /// Swipe-down on Now Playing: marks the current track disliked (so it
-  /// comes up far less in future shuffles) and skips it right away.
+  /// Swipe-up on Now Playing: counts a swipe up and makes sure the track
+  /// is in Favorites (never takes it out, unlike the heart button).
+  Future<void> swipeUpCurrent() async {
+    final track = currentTrack;
+    if (track == null) return;
+    unawaited(MusicLibraryService.instance.incrementUpSwipeCount(track.id));
+    if (!MusicPlaylistService.instance.isFavorite(track.id)) {
+      await MusicPlaylistService.instance.toggleFavorite(track.id);
+    }
+  }
+
+  /// Swipe-down (or thumbs-down) on Now Playing: counts a swipe down,
+  /// marks the current track disliked (so it comes up far less in future
+  /// shuffles) and moves on right away — not counted as a plain skip too.
   Future<void> dislikeCurrentAndSkip() async {
     final track = currentTrack;
     if (track == null) return;
+    unawaited(MusicLibraryService.instance.incrementDownSwipeCount(track.id));
     await MusicPlaylistService.instance.markDisliked(track.id);
-    await skipToNext();
+    await _advance(1, wrapWithReshuffle: true);
   }
 
   @override
@@ -754,3 +828,6 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
     await _player.dispose();
   }
 }
+
+/// See [MusicAudioHandler.volumeOrder].
+enum VolumeOrder { beforeSwitch, afterSwitch, whenLoaded }

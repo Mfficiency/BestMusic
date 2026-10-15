@@ -109,6 +109,19 @@ void main() {
       expect(tracks.single.source.name, 'local');
     });
 
+    test('an untagged "Artist - Song" file gets the song as title, the '
+        'artist as artist', () async {
+      await writeFile('Downloads/Kygo - Firestone.m4a');
+      await writeFile('Angèle - Balance ton quoi.mp3');
+
+      final tracks = await MusicLibraryService.instance.rescan();
+
+      final byTitle = {for (final t in tracks) t.title: t};
+      expect(byTitle.keys.toSet(), {'Firestone', 'Balance ton quoi'});
+      expect(byTitle['Firestone']!.artist, 'Kygo');
+      expect(byTitle['Balance ton quoi']!.artist, 'Angèle');
+    });
+
     test('an empty/unset music folder clears the library', () async {
       Config.musicFolder = '';
       final tracks = await MusicLibraryService.instance.rescan();
@@ -158,6 +171,23 @@ void main() {
 
       expect(second.single.dateAdded, dateAdded);
       expect(second.single.playCount, 1);
+    });
+
+    test('a rescan keeps skips and swipes up/down too', () async {
+      await writeFile('counted.mp3');
+      final first = await MusicLibraryService.instance.rescan();
+      final id = first.single.id;
+      final library = MusicLibraryService.instance;
+      await library.incrementSkipCount(id);
+      await library.incrementSkipCount(id);
+      await library.incrementUpSwipeCount(id);
+      await library.incrementDownSwipeCount(id);
+
+      final second = await library.rescan();
+
+      expect(second.single.skipCount, 2);
+      expect(second.single.upSwipeCount, 1);
+      expect(second.single.downSwipeCount, 1);
     });
 
     test('results persist across a resetForTest + load()', () async {

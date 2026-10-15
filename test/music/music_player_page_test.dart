@@ -6,6 +6,7 @@ import 'package:best_music/models/music_playlist.dart';
 import 'package:best_music/models/track.dart';
 import 'package:best_music/services/music_library_service.dart';
 import 'package:best_music/services/music_playlist_service.dart';
+import 'package:best_music/services/now_playing.dart';
 import 'package:best_music/ui/music_player_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -39,6 +40,7 @@ void main() {
   });
 
   tearDown(() async {
+    NowPlaying.trackId.value = null;
     Config.musicFolder = '';
     Config.musicExcludedSubfolders = [];
     Config.mp3DownloadFolder = '';
@@ -126,6 +128,47 @@ void main() {
     expect(find.text("Don't really like"), findsOneWidget);
   });
 
+  testWidgets(
+      'Playlists tab puts hand-made playlists first and folds per-genre '
+      'Most Played lists into a collapsible group', (tester) async {
+    Config.musicFolder = '/does/not/matter/for/this/test';
+    MusicLibraryService.instance.tracks.value = [
+      Track.local(
+          filePath: '/does/not/matter/a.mp3', title: 'A', genre: 'Rock'),
+      Track.local(filePath: '/does/not/matter/b.mp3', title: 'B', genre: 'Pop'),
+    ];
+    MusicPlaylistService.instance.playlists.value = [
+      MusicPlaylist.favorites(),
+      MusicPlaylist.disliked(),
+      MusicPlaylist(id: 'p1', name: 'Road trip'),
+    ];
+
+    await tester.pumpWidget(const MaterialApp(home: MusicPlayerPage()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Playlists'));
+    await tester.pumpAndSettle();
+
+    double top(String text) => tester.getTopLeft(find.text(text)).dy;
+    expect(top('Road trip'), lessThan(top('New playlist')));
+    expect(top('Favorites'), lessThan(top('Last Added')));
+    expect(top('Road trip'), lessThan(top('Most Played')));
+
+    // Collapsed by default: the per-genre lists only show once expanded.
+    await tester.dragUntilVisible(find.text('Most played by genre'),
+        find.byType(ListView).last, const Offset(0, -200));
+    await tester.pumpAndSettle();
+    expect(find.text('Most played by genre'), findsOneWidget);
+    expect(find.text('2 genres'), findsOneWidget);
+    expect(find.text('Rock'), findsNothing);
+    await tester.tap(find.text('Most played by genre'));
+    await tester.pumpAndSettle();
+    await tester.dragUntilVisible(find.text('Rock'),
+        find.byType(ListView).last, const Offset(0, -200));
+    await tester.pumpAndSettle();
+    expect(find.text('Pop'), findsOneWidget);
+    expect(find.text('Rock'), findsOneWidget);
+  });
+
   // `standalone: true` is what lib/main.dart's Best Music app passes —
   // it is the app's root/home page, so it gets a real Drawer (like
   // BestToDo's own home page) instead of buildSubpageAppBar's
@@ -159,7 +202,7 @@ void main() {
       expect(find.byTooltip('Back to Home'), findsNothing);
     });
 
-    testWidgets('drawer lists Downloader, Settings, Changelog, Startup '
+    testWidgets('drawer lists Settings, Tools, Changelog, Startup '
         'Times, App Logs and About', (tester) async {
       Config.musicFolder = '/does/not/matter/for/this/test';
       MusicLibraryService.instance.tracks.value = [
@@ -178,7 +221,24 @@ void main() {
 
       expect(find.textContaining('Best Music v'), findsOneWidget);
       expect(find.text('Home'), findsOneWidget);
-      expect(find.text('MP3 Downloader'), findsOneWidget);
+      // Songs by BPM, MP3 Downloader and Wishlist sit in the collapsed
+      // Tools section; the sleep timer is not in the menu at all.
+      expect(find.text('Tools'), findsOneWidget);
+      expect(find.text('MP3 Downloader'), findsNothing);
+      expect(find.text('Sleep timer'), findsNothing);
+      await tester.tap(find.text('Tools'));
+      await tester.pumpAndSettle();
+      for (final label in const [
+        'Songs by BPM',
+        'MP3 Downloader',
+        'Wishlist',
+        'Play history',
+      ]) {
+        expect(
+            find.descendant(
+                of: find.byType(Drawer), matching: find.text(label)),
+            findsOneWidget);
+      }
       expect(find.text('Settings'), findsOneWidget);
       expect(find.text('Changelog'), findsOneWidget);
       expect(find.text('Startup Times'), findsOneWidget);
@@ -190,6 +250,7 @@ void main() {
         for (final label in const [
           'Home',
           'Settings',
+          'Tools',
           'MP3 Downloader',
           'Changelog',
           'About',
@@ -308,7 +369,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Playlists'));
       await tester.pumpAndSettle();
-      // Below the New/Rule/Songs by BPM rows and the smart playlists.
+      // Hand-made playlists are listed first, but scroll just in case.
       await tester.dragUntilVisible(find.text('Road trip'),
           find.byType(ListView).last, const Offset(0, -200));
       await tester.pumpAndSettle();
@@ -373,7 +434,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Playlists'));
       await tester.pumpAndSettle();
-      // Below the New/Rule/Songs by BPM rows and the smart playlists.
+      // Hand-made playlists are listed first, but scroll just in case.
       await tester.dragUntilVisible(find.text('Road trip'),
           find.byType(ListView).last, const Offset(0, -200));
       await tester.pumpAndSettle();
@@ -396,6 +457,36 @@ void main() {
       expect(MusicPlaylistService.instance.byId('p1')!.trackIds,
           containsAll([song1.id, song2.id]));
     });
+  });
+
+  testWidgets('the playing song is highlighted in the track list and the '
+      'highlight follows the player', (tester) async {
+    Config.musicFolder = '/does/not/matter/for/this/test';
+    final a = Track.local(filePath: '/does/not/matter/a.mp3', title: 'Song A');
+    final b = Track.local(filePath: '/does/not/matter/b.mp3', title: 'Song B');
+    MusicLibraryService.instance.tracks.value = [a, b];
+    NowPlaying.trackId.value = a.id;
+
+    await tester.pumpWidget(const MaterialApp(home: MusicPlayerPage()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tracks'));
+    await tester.pumpAndSettle();
+
+    ListTile tileOf(String title) => tester.widget<ListTile>(find.ancestor(
+        of: find.text(title), matching: find.byType(ListTile)));
+    expect(tileOf('Song A').selected, isTrue);
+    expect(tileOf('Song B').selected, isFalse);
+    expect(
+        find.descendant(
+            of: find.ancestor(
+                of: find.text('Song A'), matching: find.byType(ListTile)),
+            matching: find.byIcon(Icons.graphic_eq)),
+        findsOneWidget);
+
+    NowPlaying.trackId.value = b.id;
+    await tester.pump();
+    expect(tileOf('Song A').selected, isFalse);
+    expect(tileOf('Song B').selected, isTrue);
   });
 
   group('Favourites/Artists/Tags/Folders tabs', () {

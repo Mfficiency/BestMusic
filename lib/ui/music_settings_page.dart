@@ -13,9 +13,14 @@ import '../services/app_updates.dart';
 import '../services/music_library_service.dart';
 import '../services/media_volume.dart';
 import '../services/music_sleep_timer.dart';
+import '../services/server_catalog.dart';
+import '../services/server_offline_store.dart';
+import '../services/subsonic_client.dart';
+import '../services/subsonic_library_sync.dart';
 import '../services/youtube_feed_service.dart';
 import 'music_theme.dart';
 import 'playback_speed_sheet.dart';
+import 'remaining_time_text.dart';
 import 'sleep_timer_sheet.dart';
 import 'subpage_app_bar.dart';
 import 'volume_sheet.dart';
@@ -23,6 +28,7 @@ import 'volume_sheet.dart';
 /// The sections of Best Music's Settings, in page order.
 enum MusicSettingsSection {
   library('Library'),
+  server('Music server'),
   playback('Playback'),
   appearance('Appearance'),
   feed('Subscriptions feed'),
@@ -395,6 +401,8 @@ class _MusicSettingsPageState extends State<MusicSettingsPage> {
                         ),
                       ],
                     ]),
+                    _buildSection(
+                        MusicSettingsSection.server, _serverTiles()),
                     _buildSection(MusicSettingsSection.playback, [
                       SwitchListTile(
                         secondary: const Icon(Icons.volume_up_outlined),
@@ -613,6 +621,166 @@ class _MusicSettingsPageState extends State<MusicSettingsPage> {
         if (picked != null) onPicked(picked);
       },
     );
+  }
+
+  /// The music server (Subsonic/Navidrome, e.g. the MagicMirror Pi): its
+  /// address and login, a connection test, and when its song list is synced.
+  List<Widget> _serverTiles() {
+    Future<void> edit({
+      required String title,
+      required String initial,
+      required String hint,
+      bool secret = false,
+      bool Function(String)? valid,
+      required void Function(String) apply,
+    }) async {
+      final messenger = ScaffoldMessenger.of(context);
+      final value = await showDialog<String>(
+        context: context,
+        builder: (_) => _TextSettingDialog(
+            title: title, initial: initial, hint: hint, secret: secret),
+      );
+      if (value == null || !mounted) return;
+      if (valid != null && !valid(value.trim())) {
+        messenger.showSnackBar(SnackBar(content: Text('Not changed: "$value"')));
+        return;
+      }
+      setState(() => apply(value.trim()));
+      unawaited(Config.save());
+    }
+
+    Future<void> test() async {
+      final messenger = ScaffoldMessenger.of(context);
+      final ok = await SubsonicClient.instance.ping();
+      messenger.showSnackBar(SnackBar(
+        content: Text(ok
+            ? 'Connected to ${Config.subsonicServerUrl}'
+            : 'No connection — check the address, user name and password'),
+      ));
+    }
+
+    Future<void> syncNow() async {
+      final messenger = ScaffoldMessenger.of(context);
+      final count = await SubsonicLibrarySync.instance.syncNow();
+      if (mounted) setState(() {});
+      messenger.showSnackBar(SnackBar(
+        content: Text(count == null
+            ? 'Sync failed — the server could not be reached'
+            : '$count songs from the server are in the library'),
+      ));
+    }
+
+    Future<void> remove() async {
+      setState(() {
+        Config.subsonicServerUrl = '';
+        Config.subsonicUsername = '';
+        Config.subsonicPassword = '';
+        Config.subsonicLastSync = null;
+      });
+      await Config.save();
+      await MusicLibraryService.instance.removeServerTracks();
+      await ServerCatalog.instance.clear();
+      await ServerOfflineStore.instance.clear();
+    }
+
+    final configured = SubsonicClient.instance.isConfigured;
+    final last = Config.subsonicLastSync;
+    return [
+      ListTile(
+        leading: const Icon(Icons.dns_outlined),
+        title: const Text('Server address'),
+        subtitle: Text(Config.subsonicServerUrl.trim().isEmpty
+            ? 'Not set — e.g. the MagicMirror Pi: http://hally.local:4533 '
+                '(or its IP address)'
+            : Config.subsonicServerUrl),
+        onTap: () => edit(
+          title: 'Server address',
+          initial: Config.subsonicServerUrl,
+          hint: 'http://192.168.1.23:4533',
+          valid: (v) => v.isEmpty || Uri.tryParse(v)?.hasScheme == true,
+          apply: (v) => Config.subsonicServerUrl = v,
+        ),
+      ),
+      ListTile(
+        leading: const Icon(Icons.person_outline),
+        title: const Text('User name'),
+        subtitle: Text(
+            Config.subsonicUsername.isEmpty ? 'Not set' : Config.subsonicUsername),
+        onTap: () => edit(
+          title: 'User name',
+          initial: Config.subsonicUsername,
+          hint: 'Your Navidrome account',
+          apply: (v) => Config.subsonicUsername = v,
+        ),
+      ),
+      ListTile(
+        leading: const Icon(Icons.password_outlined),
+        title: const Text('Password'),
+        subtitle: Text(Config.subsonicPassword.isEmpty ? 'Not set' : 'Set'),
+        onTap: () => edit(
+          title: 'Password',
+          initial: Config.subsonicPassword,
+          hint: 'Password',
+          secret: true,
+          apply: (v) => Config.subsonicPassword = v,
+        ),
+      ),
+      ListTile(
+        enabled: configured,
+        leading: const Icon(Icons.wifi_tethering),
+        title: const Text('Test connection'),
+        onTap: test,
+      ),
+      ValueListenableBuilder<bool>(
+        valueListenable: SubsonicLibrarySync.instance.syncing,
+        builder: (context, syncing, _) => ListTile(
+          enabled: configured,
+          leading: syncing
+              ? const SizedBox.square(
+                  dimension: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.sync),
+          title: const Text('Sync now'),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(!configured
+                  ? 'Fill in the server address and user name first'
+                  : last == null
+                      ? "Not synced yet — brings the server's songs into the "
+                          'library'
+                      : 'Last sync: ${_formatDateTime(last)}, '
+                          '${SubsonicLibrarySync.instance.serverSongCount} songs'),
+              if (syncing)
+                TaskRemainingText(SubsonicLibrarySync.instance.progress),
+            ],
+          ),
+          onTap: syncing ? null : syncNow,
+        ),
+      ),
+      ListTile(
+        leading: const Icon(Icons.nightlight_outlined),
+        title: const Text('Automatic sync'),
+        subtitle: Text('${Config.subsonicSyncWindow} — once a night while '
+            'the app is open, so the server does bulk work while nobody looks '
+            'at the mirror. Songs play any time, as the original file'),
+        onTap: () => edit(
+          title: 'Automatic sync between (HH:MM-HH:MM)',
+          initial: Config.subsonicSyncWindow,
+          hint: Config.defaultSubsonicSyncWindow,
+          valid: SubsonicLibrarySync.isValidWindow,
+          apply: (v) => Config.subsonicSyncWindow = v,
+        ),
+      ),
+      if (configured)
+        ListTile(
+          leading: const Icon(Icons.link_off),
+          title: const Text('Remove this server'),
+          subtitle: const Text("Forgets the login and takes the server's "
+              'songs out of the library'),
+          onTap: remove,
+        ),
+    ];
   }
 
   /// A video's Quick summary: the Claude API key and where "Save to

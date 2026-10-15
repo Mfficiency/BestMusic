@@ -10,10 +10,12 @@ import '../models/track.dart';
 import '../services/m3u_playlist_service.dart';
 import '../services/mp3_downloader_service.dart';
 import '../services/music_library_service.dart';
+import '../services/server_catalog.dart';
 import '../services/music_player_service.dart';
 import '../services/speaker_play_guard.dart';
+import '../services/subsonic_client.dart';
+import '../services/track_file_actions.dart';
 import '../services/music_playlist_service.dart';
-import '../services/music_sleep_timer.dart';
 import '../services/music_youtube_fallback.dart';
 import '../utils/artist_utils.dart';
 import 'app_logs_page.dart';
@@ -28,12 +30,15 @@ import 'music_about_page.dart';
 import 'music_metadata_scan_page.dart';
 import 'music_mini_player_bar.dart';
 import 'music_settings_page.dart';
-import 'sleep_timer_sheet.dart';
 import 'music_wishlist_page.dart';
+import 'now_playing_highlight.dart';
 import 'now_playing_page.dart';
+import 'play_history_page.dart';
 import 'rule_playlist_editor_page.dart';
 import 'startup_times_page.dart';
+import 'server_tab.dart';
 import 'subpage_app_bar.dart';
+import 'track_file_menu.dart';
 import 'track_metadata_page.dart';
 import 'youtube_feed_page.dart';
 
@@ -45,8 +50,9 @@ import 'youtube_feed_page.dart';
 /// Also the Best Music app's home page ([standalone]: true), where it is the
 /// root route rather than a BestToDo Tools subpage: [homeScaffoldKey] +
 /// [_buildDrawer] give it the same drawer-based menu as BestToDo's own home
-/// page (Settings, MP3 Downloader, Changelog, Startup Times, App Logs,
-/// About), in place of BestToDo's task-list-specific entries.
+/// page (Settings, Subscriptions, Tools → Songs by BPM / MP3 Downloader /
+/// Wishlist, Changelog, Startup Times, App Logs, About), in place of
+/// BestToDo's task-list-specific entries.
 class MusicPlayerPage extends StatefulWidget {
   const MusicPlayerPage({super.key, this.standalone = false});
 
@@ -64,7 +70,7 @@ class _MusicPlayerPageState extends State<MusicPlayerPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 6, vsync: this);
+    _tabController = TabController(length: 7, vsync: this);
     // The MP3 Downloader's folder is the common case for where music already
     // lives, so default straight to it instead of asking the user to pick
     // the same folder twice.
@@ -194,12 +200,6 @@ class _MusicPlayerPageState extends State<MusicPlayerPage>
                 _pushStandalonePage(() => const MusicSettingsPage()),
           ),
           ListTile(
-            leading: const Icon(Icons.download_outlined),
-            title: const Text('MP3 Downloader'),
-            onTap: () =>
-                _pushStandalonePage(() => const Mp3DownloaderPage()),
-          ),
-          ListTile(
             leading: const Icon(Icons.subscriptions_outlined),
             title: const Text('Subscriptions'),
             onTap: () {
@@ -207,30 +207,36 @@ class _MusicPlayerPageState extends State<MusicPlayerPage>
               Navigator.of(context).push(YoutubeFeedPage.route());
             },
           ),
-          ListTile(
-            leading: const Icon(Icons.speed),
-            title: const Text('Songs by BPM'),
-            onTap: () => _pushStandalonePage(() => const BpmRangePage()),
-          ),
-          ListTile(
-            leading: const Icon(Icons.star_border),
-            title: const Text('Wishlist'),
-            onTap: () => _pushStandalonePage(() => const MusicWishlistPage()),
-          ),
-          ValueListenableBuilder<SleepTimerState>(
-            valueListenable: MusicSleepTimer.instance.state,
-            builder: (context, state, _) => ListTile(
-              leading: Icon(
-                  state.isActive ? Icons.bedtime : Icons.bedtime_outlined),
-              title: const Text('Sleep timer'),
-              subtitle: state.isActive
-                  ? Text(MusicSleepTimer.describe(state))
-                  : null,
-              onTap: () {
-                Navigator.of(context).pop(); // close the drawer
-                showSleepTimerSheet(this.context);
-              },
-            ),
+          // Tools: the less-used helper pages, collapsed by default.
+          ExpansionTile(
+            leading: const Icon(Icons.build_outlined),
+            title: const Text('Tools'),
+            childrenPadding: const EdgeInsets.only(left: 16),
+            children: [
+              ListTile(
+                leading: const Icon(Icons.speed),
+                title: const Text('Songs by BPM'),
+                onTap: () => _pushStandalonePage(() => const BpmRangePage()),
+              ),
+              ListTile(
+                leading: const Icon(Icons.download_outlined),
+                title: const Text('MP3 Downloader'),
+                onTap: () =>
+                    _pushStandalonePage(() => const Mp3DownloaderPage()),
+              ),
+              ListTile(
+                leading: const Icon(Icons.star_border),
+                title: const Text('Wishlist'),
+                onTap: () =>
+                    _pushStandalonePage(() => const MusicWishlistPage()),
+              ),
+              ListTile(
+                leading: const Icon(Icons.restore),
+                title: const Text('Play history'),
+                onTap: () =>
+                    _pushStandalonePage(() => const PlayHistoryPage()),
+              ),
+            ],
           ),
           ListTile(
             leading: const Icon(Icons.history),
@@ -348,6 +354,7 @@ class _MusicPlayerPageState extends State<MusicPlayerPage>
             Tab(text: 'Artists'),
             Tab(text: 'Tags'),
             Tab(text: 'Folders'),
+            Tab(text: 'Server'),
           ],
         ),
       ),
@@ -363,6 +370,7 @@ class _MusicPlayerPageState extends State<MusicPlayerPage>
                 _ArtistsTab(),
                 _TagsTab(),
                 _FoldersTab(),
+                ServerTab(),
               ],
             ),
           ),
@@ -395,18 +403,11 @@ List<Track> _filterTracks(List<Track> tracks, String query) {
 /// searches YouTube instead ([YoutubeSearchFallback]).
 class _MusicSearchDelegate extends SearchDelegate<void> {
   Widget _buildTrackResults(BuildContext context) {
-    final tracks = _filterTracks(MusicLibraryService.instance.tracks.value, query);
-    if (tracks.isEmpty) {
-      final trimmed = query.trim();
-      if (trimmed.isEmpty) {
-        return const Center(child: Text('Search by title or artist'));
-      }
-      if (!Mp3DownloaderService.instance.isSupported) {
-        return Center(child: Text('No matches for "$query"'));
-      }
-      return YoutubeSearchFallback(key: ValueKey(trimmed), query: trimmed);
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) {
+      return const Center(child: Text('Search by title or artist'));
     }
-    return TrackListView(tracks: tracks);
+    return LibrarySearchResults(key: ValueKey(trimmed), query: trimmed);
   }
 
   @override
@@ -431,6 +432,96 @@ class _MusicSearchDelegate extends SearchDelegate<void> {
 
   @override
   Widget buildSuggestions(BuildContext context) => _buildTrackResults(context);
+}
+
+/// The leading icon of a song row: a cloud for a song on the music server,
+/// a note for everything else.
+Widget trackSourceIcon(Track track) => track.source == TrackSource.subsonic
+    ? const Tooltip(
+        message: 'On the music server', child: Icon(Icons.cloud_outlined))
+    : const Icon(Icons.music_note);
+
+/// The library search's results for [query]: the library's matches (server
+/// songs already synced among them, with a cloud icon) plus — when a music
+/// server is set up — whatever the server itself finds that the library
+/// doesn't have yet (after a short pause in typing). When neither has
+/// anything, it falls back to YouTube ([YoutubeSearchFallback]).
+class LibrarySearchResults extends StatefulWidget {
+  const LibrarySearchResults({super.key, required this.query});
+
+  final String query;
+
+  /// Pause after the last keystroke before asking the server.
+  static const Duration debounce = Duration(milliseconds: 400);
+
+  @override
+  State<LibrarySearchResults> createState() => _LibrarySearchResultsState();
+}
+
+class _LibrarySearchResultsState extends State<LibrarySearchResults> {
+  Timer? _debounce;
+  bool _searchingServer = false;
+  List<Track> _fromServer = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    if (SubsonicClient.instance.isConfigured) {
+      _searchingServer = true;
+      _debounce = Timer(LibrarySearchResults.debounce, _searchServer);
+    }
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _searchServer() async {
+    final found = await SubsonicClient.instance.search(widget.query);
+    if (!mounted) return;
+    setState(() {
+      _fromServer = found;
+      _searchingServer = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<List<Track>>(
+      valueListenable: MusicLibraryService.instance.tracks,
+      builder: (context, library, _) {
+        final local = _filterTracks(library, widget.query);
+        final known = {for (final t in library) t.id};
+        // A server song that is also on the phone is already in the library
+        // as the phone's copy; show that one only.
+        final onPhone = SameSongIndex(
+            library.where((t) => t.source == TrackSource.local));
+        final extra = [
+          for (final t in _fromServer)
+            if (!known.contains(t.id) && onPhone.match(t) == null) t
+        ];
+        final tracks = [...local, ...extra];
+        if (tracks.isEmpty) {
+          if (_searchingServer) {
+            return const Align(
+                alignment: Alignment.topCenter,
+                child: EstimatedProgressBar(active: true));
+          }
+          if (!Mp3DownloaderService.instance.isSupported) {
+            return Center(child: Text('No matches for "${widget.query}"'));
+          }
+          return YoutubeSearchFallback(
+              key: ValueKey(widget.query), query: widget.query);
+        }
+        return Column(children: [
+          if (_searchingServer) const EstimatedProgressBar(active: true),
+          Expanded(child: TrackListView(tracks: tracks)),
+        ]);
+      },
+    );
+  }
 }
 
 /// Shown by the library search when nothing matches [query]: searches
@@ -565,8 +656,13 @@ class _YoutubeSearchFallbackState extends State<YoutubeSearchFallback> {
           )
         else if (results != null)
           for (final result in results)
-            ListTile(
-              leading: const Icon(Icons.smart_display_outlined),
+            NowPlayingHighlight(
+              trackId: 'youtube:${result.videoId}',
+              builder: (context, isCurrent) => ListTile(
+              selected: isCurrent,
+              leading: isCurrent
+                  ? nowPlayingIcon
+                  : const Icon(Icons.smart_display_outlined),
               title: Text(result.title,
                   maxLines: 2, overflow: TextOverflow.ellipsis),
               subtitle: Text(
@@ -579,6 +675,7 @@ class _YoutubeSearchFallbackState extends State<YoutubeSearchFallback> {
               trailing: Icon(Icons.cloud_download_outlined,
                   size: 20, color: scheme.outline),
               onTap: () => _play(result),
+            ),
             ),
       ],
     );
@@ -654,7 +751,7 @@ class _ArtistsTab extends StatelessWidget {
         final byArtist = <String, List<Track>>{};
         final featuringByArtist = <String, Set<String>>{};
         for (final track in tracks) {
-          final credit = splitArtistCredit(track.artist);
+          final credit = splitArtistCredit(track.displayArtist);
           final artist = credit.mainArtist.isEmpty ? _unknownArtist : credit.mainArtist;
           byArtist.putIfAbsent(artist, () => []).add(track);
           if (credit.featuring.isNotEmpty) {
@@ -759,10 +856,14 @@ class _TagsTab extends StatelessWidget {
 
 /// The folder (relative to [Config.musicFolder]) a local [track] lives in,
 /// for grouping in the Folders tab. Tracks right under the music folder
-/// itself group under "(Music folder)"; a Subsonic track (no [Track.filePath])
-/// groups under "Other".
+/// itself group under "(Music folder)"; a music server song groups under
+/// "Server/<its folder there>", anything else under "Other".
 String folderLabelOf(Track track) {
   final path = track.filePath;
+  if (track.source == TrackSource.subsonic) {
+    final folder = ServerCatalog.folderOf(track);
+    return folder.isEmpty ? 'Server' : 'Server/$folder';
+  }
   if (path == null) return 'Other';
   final root = MusicLibraryService.normalizePath(Config.musicFolder.trim());
   final normalized = MusicLibraryService.normalizePath(path);
@@ -885,62 +986,81 @@ class _PlaylistsTab extends StatelessWidget {
         return ValueListenableBuilder<List<MusicPlaylist>>(
           valueListenable: MusicPlaylistService.instance.playlists,
           builder: (context, userPlaylists, __) {
-            final playlists = [
-              ...MusicPlaylistService.instance.smartPlaylists,
-              ...userPlaylists,
-            ];
-            return ListView.builder(
-              itemCount: playlists.length + 3,
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return ListTile(
-                    leading: const Icon(Icons.add_circle_outline),
-                    title: const Text('New playlist'),
-                    onTap: () async {
-                      final name = await promptPlaylistName(context);
-                      if (name == null || name.trim().isEmpty) return;
-                      await MusicPlaylistService.instance
-                          .createPlaylist(name.trim(), []);
-                    },
-                  );
-                }
-                if (index == 1) {
-                  return ListTile(
-                    leading: const Icon(Icons.rule),
-                    title: const Text('New rule playlist'),
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const RulePlaylistEditorPage(),
-                    )),
-                  );
-                }
-                if (index == 2) {
-                  return ListTile(
-                    leading: const Icon(Icons.speed),
-                    title: const Text('Songs by BPM'),
-                    subtitle: const Text(
-                        'Pick a BPM range, play it or save it as a playlist'),
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const BpmRangePage(),
-                    )),
-                  );
-                }
-                final playlist = playlists[index - 3];
-                final trackCount =
-                    MusicPlaylistService.instance.resolvedTracks(playlist).length;
-                return ListTile(
-                  leading: Icon(_iconFor(playlist)),
-                  title: Text(playlist.name),
-                  subtitle: Text('$trackCount tracks'),
-                  trailing: _trailingFor(context, playlist),
+            // Hand-made playlists (Favorites/"Don't really like", built,
+            // imported or rule playlists) come first; the computed ones
+            // follow, with the per-genre "Most Played" lists tucked into a
+            // collapsed group so they don't push everything else down.
+            final smart = MusicPlaylistService.instance.smartPlaylists;
+            final byGenre = smart
+                .where((p) => (p.genreFilter ?? '').isNotEmpty)
+                .toList();
+            final otherSmart = smart
+                .where((p) => (p.genreFilter ?? '').isEmpty)
+                .toList();
+            return ListView(
+              children: [
+                for (final playlist in userPlaylists)
+                  _playlistTile(context, playlist),
+                ListTile(
+                  leading: const Icon(Icons.add_circle_outline),
+                  title: const Text('New playlist'),
+                  onTap: () async {
+                    final name = await promptPlaylistName(context);
+                    if (name == null || name.trim().isEmpty) return;
+                    await MusicPlaylistService.instance
+                        .createPlaylist(name.trim(), []);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.rule),
+                  title: const Text('New rule playlist'),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => MusicPlaylistDetailPage(playlist: playlist),
+                    builder: (_) => const RulePlaylistEditorPage(),
                   )),
-                );
-              },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.speed),
+                  title: const Text('Songs by BPM'),
+                  subtitle: const Text(
+                      'Pick a BPM range, play it or save it as a playlist'),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const BpmRangePage(),
+                  )),
+                ),
+                for (final playlist in otherSmart)
+                  _playlistTile(context, playlist),
+                if (byGenre.isNotEmpty)
+                  ExpansionTile(
+                    leading: const Icon(Icons.folder_outlined),
+                    title: const Text('Most played by genre'),
+                    subtitle: Text(
+                        '${byGenre.length} genre${byGenre.length == 1 ? '' : 's'}'),
+                    children: [
+                      for (final playlist in byGenre)
+                        _playlistTile(context, playlist,
+                            title: playlist.genreFilter),
+                    ],
+                  ),
+              ],
             );
           },
         );
       },
+    );
+  }
+
+  Widget _playlistTile(BuildContext context, MusicPlaylist playlist,
+      {String? title}) {
+    final trackCount =
+        MusicPlaylistService.instance.resolvedTracks(playlist).length;
+    return ListTile(
+      leading: Icon(_iconFor(playlist)),
+      title: Text(title ?? playlist.name),
+      subtitle: Text('$trackCount tracks'),
+      trailing: _trailingFor(context, playlist),
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => MusicPlaylistDetailPage(playlist: playlist),
+      )),
     );
   }
 }
@@ -1055,8 +1175,10 @@ class _AddSongsToPlaylistPageState extends State<AddSongsToPlaylistPage> {
                     final track = candidates[index];
                     return CheckboxListTile(
                       value: _selected.contains(track.id),
-                      title: Text(track.title.isNotEmpty ? track.title : track.fileBaseName),
-                      subtitle: track.artist.isNotEmpty ? Text(track.artist) : null,
+                      title: Text(track.displayTitle),
+                      subtitle: track.displayArtist.isNotEmpty
+                          ? Text(track.displayArtist)
+                          : null,
                       onChanged: (checked) => setState(() {
                         if (checked == true) {
                           _selected.add(track.id);
@@ -1114,8 +1236,7 @@ String trackSortDirectionLabel(TrackSortField field, bool ascending) {
 bool trackSortDefaultAscending(TrackSortField field) =>
     field == TrackSortField.title || field == TrackSortField.artist;
 
-String _trackDisplayTitle(Track t) =>
-    t.title.isNotEmpty ? t.title : t.fileBaseName;
+String _trackDisplayTitle(Track t) => t.displayTitle;
 
 DateTime? _trackSortDate(Track t, TrackSortField field) =>
     field == TrackSortField.deviceDate ? t.deviceDate : t.dateAdded;
@@ -1352,19 +1473,23 @@ class _TrackListViewState extends State<TrackListView> {
             ),
             itemBuilder: (context, index) {
               final track = tracks[index];
-              return ValueListenableBuilder<List<MusicPlaylist>>(
+              return NowPlayingHighlight(
+                trackId: track.id,
+                builder: (context, isCurrent) =>
+                    ValueListenableBuilder<List<MusicPlaylist>>(
                 valueListenable: MusicPlaylistService.instance.playlists,
                 builder: (context, _, __) {
                   final isFavorite =
                       MusicPlaylistService.instance.isFavorite(track.id);
                   return ListTile(
-                    leading: const Icon(Icons.music_note),
+                    selected: isCurrent,
+                    leading: isCurrent ? nowPlayingIcon : trackSourceIcon(track),
                     title: Text(_trackDisplayTitle(track),
                         maxLines: 1, overflow: TextOverflow.ellipsis),
                     // Always two lines (matching the prototype row height).
                     subtitle: Text(
-                        track.artist.isNotEmpty
-                            ? track.artist
+                        track.displayArtist.isNotEmpty
+                            ? track.displayArtist
                             : 'Unknown artist',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
@@ -1391,6 +1516,16 @@ class _TrackListViewState extends State<TrackListView> {
                                 builder: (_) =>
                                     TrackMetadataPage(trackId: track.id),
                               ));
+                            }
+                            break;
+                          case 'move':
+                            if (context.mounted) {
+                              await pickFolderAndMove(context, track);
+                            }
+                            break;
+                          case 'delete':
+                            if (context.mounted) {
+                              await confirmAndDeleteTrack(context, track);
                             }
                             break;
                         }
@@ -1450,11 +1585,34 @@ class _TrackListViewState extends State<TrackListView> {
                                     overflow: TextOverflow.ellipsis)),
                           ]),
                         ),
+                        if (TrackFileActions.canManage(track))
+                          const PopupMenuItem(
+                            value: 'move',
+                            child: Row(children: [
+                              Icon(Icons.drive_file_move_outline, size: 18),
+                              SizedBox(width: 8),
+                              Flexible(
+                                  child: Text('Move to folder',
+                                      overflow: TextOverflow.ellipsis)),
+                            ]),
+                          ),
+                        if (TrackFileActions.canManage(track))
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Row(children: [
+                              Icon(Icons.delete_outline, size: 18),
+                              SizedBox(width: 8),
+                              Flexible(
+                                  child: Text('Delete',
+                                      overflow: TextOverflow.ellipsis)),
+                            ]),
+                          ),
                       ],
                     ),
                     onTap: () => _play(tracks, startIndex: index),
                   );
                 },
+                ),
               );
             },
           ),

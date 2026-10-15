@@ -1,5 +1,6 @@
 import 'package:best_music/config.dart';
 import 'package:best_music/models/music_playlist.dart';
+import 'package:best_music/models/track.dart';
 import 'package:best_music/services/music_library_service.dart';
 import 'package:best_music/services/music_player_service.dart';
 import 'package:best_music/services/music_playlist_service.dart';
@@ -79,5 +80,28 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Queue is empty'), findsOneWidget);
+  });
+
+  testWidgets('Add to playlist opens the playlist sheet for the playing song',
+      (tester) async {
+    MusicPlaylistService.instance.playlists.value = [
+      MusicPlaylist.favorites(),
+      MusicPlaylist.disliked(),
+      MusicPlaylist(id: 'p1', name: 'Road trip'),
+    ];
+    final song = Track.local(filePath: '/fake/song.mp3', title: 'Song');
+    MusicLibraryService.instance.tracks.value = [song];
+    MusicPlayerService.handler.restore([song]);
+
+    await tester.pumpWidget(const MaterialApp(home: NowPlayingPage()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Add to playlist'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('New playlist'), findsOneWidget);
+    expect(find.text('Road trip'), findsOneWidget);
+    await tester.tap(find.text('Road trip'));
+    await tester.pump();
+    expect(MusicPlaylistService.instance.byId('p1')!.trackIds, [song.id]);
   });
 }

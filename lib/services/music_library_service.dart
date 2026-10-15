@@ -12,6 +12,7 @@ import 'log_service.dart';
 import 'music_metadata_csv.dart';
 import 'music_metadata_extractor.dart';
 import 'music_online_metadata.dart';
+import 'server_catalog.dart';
 
 /// Scans [Config.musicFolder] and every subfolder for playable audio files,
 /// skipping anything under [Config.musicExcludedSubfolders]. Reads ID3 tags
@@ -20,6 +21,10 @@ import 'music_online_metadata.dart';
 /// to `music_library.json` so the library shows up instantly on next launch
 /// without waiting for a fresh scan; call [rescan] to refresh it (e.g. after
 /// the user changes the music folder or adds files).
+///
+/// Songs on a music server ([TrackSource.subsonic]) live in the same list,
+/// put there by [replaceServerTracks] (`SubsonicLibrarySync`); a folder
+/// rescan keeps them, and a server sync keeps the folder's songs.
 class MusicLibraryService {
   MusicLibraryService._();
 
@@ -177,7 +182,7 @@ class MusicLibraryService {
     final root = Config.musicFolder.trim();
     if (root.isEmpty) {
       LogService.add('Music', 'rescan: no music folder configured');
-      tracks.value = [];
+      tracks.value = _serverTracks();
       await _save();
       return tracks.value;
     }
@@ -240,21 +245,24 @@ class MusicLibraryService {
                 // A BPM typed in by hand wins; a tag added later fills a gap.
                 bpm: previous.bpm ?? track.bpm,
               )
-            : track.copyWith(
-                dateAdded: previous?.dateAdded ?? now,
-                deviceDate: arrived,
-                playCount: previous?.playCount ?? 0,
-              );
+            : track
+                .copyWith(
+                  dateAdded: previous?.dateAdded ?? now,
+                  deviceDate: arrived,
+                )
+                .withCountersOf(previous);
         found.add(track);
         onTrackScanned?.call(found.length, track);
       }
-      found.sort((a, b) =>
-          a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+      final scannedCount = found.length;
+      found
+        ..addAll(_serverTracks())
+        ..sort(_byTitle);
       tracks.value = found;
       await _save();
       LogService.add(
           'Music',
-          'rescan: "$root" — $filesSeen file(s) seen, ${found.length} '
+          'rescan: "$root" — $filesSeen file(s) seen, $scannedCount '
           'track(s) kept, $skippedUnsupportedExt unsupported extension, '
           '$skippedExcludedDir in excluded subfolders');
     } catch (e, st) {
@@ -266,6 +274,72 @@ class MusicLibraryService {
       scanning = false;
     }
     return tracks.value;
+  }
+
+  static int _byTitle(Track a, Track b) =>
+      a.title.toLowerCase().compareTo(b.title.toLowerCase());
+
+  List<Track> _serverTracks() =>
+      tracks.value.where((t) => t.source == TrackSource.subsonic).toList();
+
+  /// Replaces the music server's songs with [fresh] (the server's complete
+  /// song list), keeping the folder's songs. A server song that is also on
+  /// the phone ([sameSong]: uploaded from here, or copied both places) is
+  /// left out, so the library shows each song once. A song that was already there
+  /// keeps its date added, play count and tags, and — when it was edited by
+  /// hand — its edited fields, the same way [rescan] treats files. Songs no
+  /// longer on the server leave the library. Returns how many server songs the library holds now.
+  Future<int> replaceServerTracks(List<Track> fresh) async {
+    final onPhone = SameSongIndex(
+        tracks.value.where((t) => t.source == TrackSource.local));
+    fresh = [for (final t in fresh) if (onPhone.match(t) == null) t];
+    final previousById = {for (final t in _serverTracks()) t.id: t};
+    final now = DateTime.now();
+    final merged = [
+      for (final track in fresh)
+        if (previousById[track.id] case final previous?)
+          previous.metadataEdited
+              ? previous.copyWith(
+                  durationMs: track.durationMs ?? previous.durationMs,
+                  bpm: previous.bpm ?? track.bpm)
+              : track
+                  .copyWith(dateAdded: previous.dateAdded ?? now, tags: previous.tags)
+                  .withCountersOf(previous)
+        else
+          track.copyWith(dateAdded: now),
+    ];
+    final list = [
+      ...tracks.value.where((t) => t.source != TrackSource.subsonic),
+      ...merged,
+    ]..sort(_byTitle);
+    tracks.value = list;
+    await _save();
+    return merged.length;
+  }
+
+  /// Takes the songs with [ids] out of the library (deleted songs).
+  Future<void> removeTracks(Set<String> ids) async {
+    if (!tracks.value.any((t) => ids.contains(t.id))) return;
+    tracks.value = tracks.value.where((t) => !ids.contains(t.id)).toList();
+    await _save();
+  }
+
+  /// Puts [track] in place of the song with [oldId] (a moved song: a phone
+  /// song's id changes with its path), or adds it when that isn't there.
+  Future<void> replaceTrack(String oldId, Track track) async {
+    tracks.value = [
+      ...tracks.value.where((t) => t.id != oldId && t.id != track.id),
+      track,
+    ]..sort(_byTitle);
+    await _save();
+  }
+
+  /// Takes every music server song out of the library (server removed).
+  Future<void> removeServerTracks() async {
+    if (_serverTracks().isEmpty) return;
+    tracks.value =
+        tracks.value.where((t) => t.source != TrackSource.subsonic).toList();
+    await _save();
   }
 
   static DateTime? _earlier(DateTime? a, DateTime? b) {
@@ -288,15 +362,33 @@ class MusicLibraryService {
 
   Future<Track> _buildTrack(String filePath, String ext) async {
     final fallbackTitle = baseNameOf(filePath);
-    if (ext != 'mp3') {
-      return Track.local(filePath: filePath, title: fallbackTitle);
+    // Without tags, an "Artist - Song.m4a" file name gives both.
+    Track fromName() {
+      final split = Track.splitArtistAndSong(fallbackTitle);
+      return split == null
+          ? Track.local(filePath: filePath, title: fallbackTitle)
+          : Track.local(filePath: filePath, title: split.$2, artist: split.$1);
     }
+
+    if (ext != 'mp3') return fromName();
     try {
       final raf = await File(filePath).open();
       final length = await raf.length();
       final headBytes = await raf.read(min(length, id3ReadCap));
       await raf.close();
       final tags = decodeMp3Tags(headBytes);
+      if ((tags.title ?? '').trim().isEmpty && (tags.artist ?? '').trim().isEmpty) {
+        final named = fromName();
+        return Track.local(
+          filePath: filePath,
+          title: named.title,
+          artist: named.artist,
+          album: (tags.album ?? '').trim(),
+          genre: (tags.genre ?? '').trim(),
+          year: tags.year,
+          bpm: tags.bpm,
+        );
+      }
       return Track.local(
         filePath: filePath,
         title: (tags.title != null && tags.title!.trim().isNotEmpty)
@@ -309,7 +401,7 @@ class MusicLibraryService {
         bpm: tags.bpm,
       );
     } catch (_) {
-      return Track.local(filePath: filePath, title: fallbackTitle);
+      return fromName();
     }
   }
 
@@ -337,6 +429,8 @@ class MusicLibraryService {
       source: existing.source,
       filePath: existing.filePath,
       remoteId: existing.remoteId,
+      remotePath: existing.remotePath,
+      sizeBytes: existing.sizeBytes,
       title: title,
       artist: artist,
       album: album,
@@ -347,6 +441,9 @@ class MusicLibraryService {
       dateAdded: existing.dateAdded,
       deviceDate: existing.deviceDate,
       playCount: existing.playCount,
+      skipCount: existing.skipCount,
+      upSwipeCount: existing.upSwipeCount,
+      downSwipeCount: existing.downSwipeCount,
       metadataEdited: true,
       tags: tags,
     );
@@ -376,6 +473,8 @@ class MusicLibraryService {
         source: existing.source,
         filePath: existing.filePath,
         remoteId: existing.remoteId,
+        remotePath: existing.remotePath,
+        sizeBytes: existing.sizeBytes,
         title: row.title.isNotEmpty ? row.title : existing.title,
         artist: row.artist.isNotEmpty ? row.artist : existing.artist,
         album: row.album.isNotEmpty ? row.album : existing.album,
@@ -386,6 +485,9 @@ class MusicLibraryService {
         dateAdded: existing.dateAdded,
         deviceDate: existing.deviceDate,
         playCount: existing.playCount,
+        skipCount: existing.skipCount,
+        upSwipeCount: existing.upSwipeCount,
+        downSwipeCount: existing.downSwipeCount,
         metadataEdited: true,
         tags: row.tags.isNotEmpty ? row.tags : existing.tags,
       );
@@ -446,12 +548,27 @@ class MusicLibraryService {
   /// Bumps [trackId]'s play count and persists it. No-op if the track isn't
   /// currently in the library (e.g. it was removed since the queue was
   /// built).
-  Future<void> incrementPlayCount(String trackId) async {
+  Future<void> incrementPlayCount(String trackId) =>
+      _bump(trackId, (t) => t.copyWith(playCount: t.playCount + 1));
+
+  /// Next pressed while [trackId] was playing. Same no-op rule as
+  /// [incrementPlayCount].
+  Future<void> incrementSkipCount(String trackId) =>
+      _bump(trackId, (t) => t.copyWith(skipCount: t.skipCount + 1));
+
+  /// Now Playing swiped up on [trackId].
+  Future<void> incrementUpSwipeCount(String trackId) =>
+      _bump(trackId, (t) => t.copyWith(upSwipeCount: t.upSwipeCount + 1));
+
+  /// Now Playing swiped down (or thumbs-down) on [trackId].
+  Future<void> incrementDownSwipeCount(String trackId) =>
+      _bump(trackId, (t) => t.copyWith(downSwipeCount: t.downSwipeCount + 1));
+
+  Future<void> _bump(String trackId, Track Function(Track) change) async {
     final index = tracks.value.indexWhere((t) => t.id == trackId);
     if (index < 0) return;
     final updated = List<Track>.of(tracks.value);
-    updated[index] =
-        updated[index].copyWith(playCount: updated[index].playCount + 1);
+    updated[index] = change(updated[index]);
     tracks.value = updated;
     await _save();
   }

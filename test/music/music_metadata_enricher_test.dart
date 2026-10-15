@@ -357,12 +357,21 @@ void main() {
     e.stop();
   });
 
-  test('formatTimeLeft', () {
-    expect(formatTimeLeft(const Duration(seconds: 20)),
-        'less than a minute left');
-    expect(formatTimeLeft(const Duration(seconds: 61)), 'about 2 min left');
-    expect(formatTimeLeft(const Duration(minutes: 45)), 'about 45 min left');
-    expect(formatTimeLeft(const Duration(minutes: 125)), 'about 2 h 5 min left');
-    expect(formatTimeLeft(const Duration(hours: 3)), 'about 3 h left');
+  test('publishes how far the online pass is, for the time-left line',
+      () async {
+    library.tracks.value = [_track('A'), _track('B'), _track('C'), _track('D')];
+    final lookup = _FakeLookup({});
+    final e = enricher(lookup);
+    final seen = <double?>[];
+    e.progress.addListener(() => seen.add(e.progress.value?.done));
+    await e.start();
+    await e.whenIdle();
+    // The online pass, up to where it clears (then the BPM pass starts).
+    expect(seen.takeWhile((d) => d != null).toList(),
+        [0, 0.25, 0.5, 0.75, 1]);
+    expect(e.progress.value, isNull, reason: 'cleared when the pass ends');
+    expect(e.status.value, isNot(contains('min left')),
+        reason: 'the time left is its own line now');
+    e.stop();
   });
 }

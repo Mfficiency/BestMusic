@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'models/bpm_preset.dart';
+import 'services/safe_file.dart';
 
 /// Best Music's settings, persisted as `settings.json` in the app documents
 /// dir. The keys are the ones Best Music has always written (it used to be a
@@ -191,22 +192,67 @@ class Config {
   /// only).
   static String subsonicPassword = '';
 
+  /// When the server's song list may be fetched automatically ('HH:MM-HH:MM',
+  /// phone local time, may cross midnight) — see `SubsonicLibrarySync`. The
+  /// default matches the night window of the MagicMirror Pi's music server,
+  /// so the Pi does bulk work only while nobody looks at the mirror.
+  static String subsonicSyncWindow = defaultSubsonicSyncWindow;
+  static const String defaultSubsonicSyncWindow = '01:00-06:00';
+
+  /// When the server's song list was last fetched completely; null = never.
+  static DateTime? subsonicLastSync;
+
   static const _settingsFileName = 'settings.json';
+
+  /// The music server's address and login, kept in a file of their own on
+  /// top of [_settingsFileName]: that one is rewritten all the time (the
+  /// phone volume alone saves it on every change), this one only when the
+  /// login changes, so even if `settings.json` were ever lost the server
+  /// stays connected after an update.
+  static const _serverLoginFileName = 'music_server.json';
+
+  /// What [save] last wrote to [_serverLoginFileName] (or [load] read), so
+  /// it is only rewritten when the login actually changed.
+  static String? _savedServerLogin;
 
   static Future<File> _getSettingsFile() async {
     final dir = await getApplicationDocumentsDirectory();
     return File('${dir.path}/$_settingsFileName');
   }
 
-  /// Loads persisted settings from disk.
+  static Future<File> _getServerLoginFile() async {
+    final dir = await getApplicationDocumentsDirectory();
+    return File('${dir.path}/$_serverLoginFileName');
+  }
+
+  static Map<String, dynamic> _parseMap(String contents) =>
+      jsonDecode(contents) as Map<String, dynamic>;
+
+  static String _serverLoginJson() => jsonEncode({
+        'subsonicServerUrl': subsonicServerUrl,
+        'subsonicUsername': subsonicUsername,
+        'subsonicPassword': subsonicPassword,
+      });
+
+  /// Loads persisted settings from disk. Saves are atomic with a `.bak` of
+  /// the previous content ([SafeFile]), so a write cut off by the app being
+  /// killed (e.g. while an update installs) falls back to the last good
+  /// settings instead of resetting everything.
   static Future<void> load() async {
     try {
-      final file = await _getSettingsFile();
-      if (await file.exists()) {
-        final data =
-            jsonDecode(await file.readAsString()) as Map<String, dynamic>;
-        applyMap(data);
+      final data =
+          await SafeFile.readWithRecovery(await _getSettingsFile(), _parseMap);
+      if (data != null) applyMap(data);
+    } catch (_) {}
+    try {
+      final login = await SafeFile.readWithRecovery(
+          await _getServerLoginFile(), _parseMap);
+      if (login != null && subsonicServerUrl.trim().isEmpty) {
+        subsonicServerUrl = login['subsonicServerUrl'] as String? ?? '';
+        subsonicUsername = login['subsonicUsername'] as String? ?? '';
+        subsonicPassword = login['subsonicPassword'] as String? ?? '';
       }
+      _savedServerLogin = login == null ? null : _serverLoginJson();
     } catch (_) {}
   }
 
@@ -234,6 +280,9 @@ class Config {
       'subsonicServerUrl': subsonicServerUrl,
       'subsonicUsername': subsonicUsername,
       'subsonicPassword': subsonicPassword,
+      'subsonicSyncWindow': subsonicSyncWindow,
+      if (subsonicLastSync != null)
+        'subsonicLastSync': subsonicLastSync!.millisecondsSinceEpoch,
     };
   }
 
@@ -292,14 +341,28 @@ class Config {
         data['subsonicServerUrl'] as String? ?? subsonicServerUrl;
     subsonicUsername = data['subsonicUsername'] as String? ?? subsonicUsername;
     subsonicPassword = data['subsonicPassword'] as String? ?? subsonicPassword;
+    subsonicSyncWindow =
+        data['subsonicSyncWindow'] as String? ?? subsonicSyncWindow;
+    final lastSync = data['subsonicLastSync'];
+    if (lastSync is num) {
+      subsonicLastSync = DateTime.fromMillisecondsSinceEpoch(lastSync.round());
+    }
   }
 
   /// Persists the current settings to disk.
   static Future<void> save() async {
     try {
-      final file = await _getSettingsFile();
-      final data = toMap();
-      await file.writeAsString(jsonEncode(data), flush: true);
+      await SafeFile.writeString(
+          await _getSettingsFile(), jsonEncode(toMap()));
     } catch (_) {}
+    try {
+      final login = _serverLoginJson();
+      if (login != _savedServerLogin) {
+        _savedServerLogin = login;
+        await SafeFile.writeString(await _getServerLoginFile(), login);
+      }
+    } catch (_) {
+      _savedServerLogin = null;
+    }
   }
 }

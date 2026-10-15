@@ -9,6 +9,7 @@ import '../services/feed_search.dart';
 import '../services/mp3_downloader_service.dart'
     show Mp3SearchResult, formatViewCount;
 import '../services/music_player_service.dart';
+import '../services/now_playing.dart';
 import '../services/speaker_play_guard.dart';
 import '../services/youtube_search_api.dart';
 import '../services/youtube_feed_service.dart';
@@ -595,6 +596,8 @@ class _YoutubeFeedPageState extends State<YoutubeFeedPage> {
                         value: _service.refreshProgress.value > 0
                             ? _service.refreshProgress.value
                             : null,
+                        showRemaining: true,
+                        startedAt: _service.refreshStartedAt,
                       ),
                       if (failed.isNotEmpty)
                         ListTile(
@@ -857,9 +860,21 @@ class FeedVideoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final played = progress?.completed ?? false;
+    return ValueListenableBuilder<String?>(
+      valueListenable: NowPlaying.trackId,
+      builder: (context, playingId, _) =>
+          _build(context, playingId == 'youtube:${video.videoId}'),
+    );
+  }
+
+  Widget _build(BuildContext context, bool isCurrent) {
+    final scheme = Theme.of(context).colorScheme;
+    // The playing video is highlighted, and never dimmed as "played".
+    final played = !isCurrent && (progress?.completed ?? false);
     return Opacity(
       opacity: played ? 0.5 : 1,
+      child: Material(
+      color: isCurrent ? scheme.primaryContainer : Colors.transparent,
       child: InkWell(
         onTap: onTap,
         onLongPress: onLongPress,
@@ -886,6 +901,20 @@ class FeedVideoTile extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
                     const SizedBox(height: 4),
+                    if (isCurrent)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: Row(children: [
+                          Icon(Icons.graphic_eq,
+                              size: 14, color: scheme.primary),
+                          const SizedBox(width: 4),
+                          Text('Now playing',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(color: scheme.primary)),
+                        ]),
+                      ),
                     Row(children: [
                       if (played)
                         const Padding(
@@ -926,6 +955,7 @@ class FeedVideoTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
       ),
     );
   }

@@ -91,6 +91,9 @@ class YoutubeFeedService {
   /// How far the running refresh is, `[0, 1]` by channels fetched.
   final ValueNotifier<double> refreshProgress = ValueNotifier(0);
 
+  /// When the running refresh began (the "hh:mm:ss remaining" line).
+  DateTime? refreshStartedAt;
+
   DateTime? lastRefresh;
 
   /// How far back the feed shows: [initialWindow] when the feed opens (so
@@ -389,11 +392,16 @@ class YoutubeFeedService {
 
   /// Imports a Tubular/NewPipe subscriptions export (Settings → Content →
   /// Export subscriptions — a JSON file).
-  Future<SubscriptionImportResult> importNewPipe(String json) async {
+  ///
+  /// [onProgress] gets (entries done, all entries) as it goes.
+  Future<SubscriptionImportResult> importNewPipe(String json,
+      {void Function(int done, int total)? onProgress}) async {
     final entries = parseNewPipeSubscriptions(json);
     var added = 0, already = 0, skipped = 0;
     final current = {for (final c in subscriptions.value) c.id: c};
+    var done = 0;
     for (final entry in entries) {
+      onProgress?.call(done++, entries.length);
       YoutubeChannel? channel;
       final id = channelIdFromUrl(entry.url);
       if (id != null) {
@@ -427,11 +435,15 @@ class YoutubeFeedService {
   /// each is searched with [searchChannels] (so `@handles` and channel URLs
   /// work too) and the result whose name matches exactly, ignoring case, is
   /// taken — else the top result.
-  Future<SubscriptionImportResult> importChannelNames(String text) async {
+  ///
+  /// [onProgress] gets (names looked up, all names) as it goes.
+  Future<SubscriptionImportResult> importChannelNames(String text,
+      {void Function(int done, int total)? onProgress}) async {
     final names = parseChannelNameList(text);
     final found = List<YoutubeChannel?>.filled(names.length, null);
     const batch = 4;
     for (var start = 0; start < names.length; start += batch) {
+      onProgress?.call(start, names.length);
       final end = (start + batch).clamp(0, names.length);
       await Future.wait([
         for (var i = start; i < end; i++)
@@ -533,6 +545,7 @@ class YoutubeFeedService {
     bool all = false,
   }) async {
     if (channels.isEmpty) return;
+    refreshStartedAt = DateTime.now();
     refreshing.value = true;
     refreshProgress.value = 0;
     final fetched = <String, List<FeedVideo>>{};

@@ -1841,7 +1841,7 @@ contents>}}`. `stores` carries the documents-dir files listed in
 SponsorBlock, watch progress), `mp3_downloads.json`, `music_enrichment.json`
 and `music_resume.json` (the playback resume point; read once at startup, so a
 restored one applies on the next launch, Best Music 0.3.30), `play_history.json`
-(Play history, Best Music 0.3.43) — read straight
+(Play history, Best Music 0.3.45) — read straight
 from disk so a backup is complete without any page loaded. The library entries
 carry the analyzed metadata (BPM, genre, year, …), play counts and manual
 edits; `music_enrichment.json` the online/on-device lookup results; the feed
@@ -2151,3 +2151,10 @@ Tests: `test/music/play_history_service_test.dart`, `test/music/play_history_pag
   kind or nothing before (`whenLoaded`): right after loading, as before.
   Tests: `test/music/music_resume_test.dart` (pill hidden next to the bar's button, volume
   order), `test/music/now_playing_page_test.dart` (Add to playlist).
+
+### 10.6w Next on the song bar (Best Music 0.3.47)
+
+`MusicMiniPlayerBar` gains a Next button after play/pause (and after forward 10 s for a video):
+`skip_next`, key `musicMiniPlayerNext`, labelled "Next" through `Semantics` like play/pause
+(the bar sits outside the navigator's Overlay). It calls `skipToNext`, so it counts as a skip
+of the track being left (§10.6u). Test: `test/music/music_resume_test.dart`.

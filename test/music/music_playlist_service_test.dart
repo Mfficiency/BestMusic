@@ -129,6 +129,57 @@ void main() {
           MusicPlaylistService.normalWeight);
     });
 
+    test('listeningFactor: plays and swipes up raise it, skips and swipes '
+        'down lower it, within bounds', () {
+      final base = Track.local(filePath: '/x.mp3', title: 'x');
+      double f(Track t) => MusicPlaylistService.listeningFactor(t);
+
+      expect(f(base), 1.0);
+      expect(f(base.copyWith(playCount: 100, skipCount: 10)),
+          closeTo(2.92, 0.01));
+      expect(f(base.copyWith(skipCount: 5)), closeTo(0.53, 0.01));
+      expect(f(base.copyWith(upSwipeCount: 1)), greaterThan(f(base.copyWith(playCount: 1))));
+      expect(f(base.copyWith(downSwipeCount: 1)), lessThan(f(base.copyWith(skipCount: 1))));
+      expect(f(base.copyWith(playCount: 100000)),
+          MusicPlaylistService.maxListeningFactor);
+      expect(f(base.copyWith(downSwipeCount: 1000)),
+          MusicPlaylistService.minListeningFactor);
+    });
+
+    test('weightFor multiplies the favorite/disliked weight by the '
+        'listening factor', () async {
+      await MusicPlaylistService.instance.load();
+      final loved = Track.local(filePath: '/l.mp3', title: 'l')
+          .copyWith(playCount: 100, skipCount: 10);
+      await MusicPlaylistService.instance.toggleFavorite(loved.id);
+
+      expect(MusicPlaylistService.instance.weightFor(loved),
+          closeTo(MusicPlaylistService.favoriteWeight * 2.92, 0.05));
+    });
+
+    test('often-played songs land earlier than often-skipped ones', () async {
+      await MusicPlaylistService.instance.load();
+      final liked = [
+        for (var i = 0; i < 20; i++)
+          Track.local(filePath: '/liked$i.mp3', title: 'l$i')
+              .copyWith(playCount: 50, upSwipeCount: 5),
+      ];
+      final skipped = [
+        for (var i = 0; i < 20; i++)
+          Track.local(filePath: '/skipped$i.mp3', title: 's$i')
+              .copyWith(skipCount: 20, downSwipeCount: 2),
+      ];
+      var likedInFirstHalf = 0;
+      for (var round = 0; round < 20; round++) {
+        final order = MusicPlaylistService.instance
+            .weightedShuffle([...skipped, ...liked]);
+        likedInFirstHalf +=
+            order.take(20).where((t) => t.title.startsWith('l')).length;
+      }
+      // 400 slots; even odds would be ~200.
+      expect(likedInFirstHalf, greaterThan(320));
+    });
+
     test('returns every input track exactly once', () async {
       await MusicPlaylistService.instance.load();
       final tracks = [

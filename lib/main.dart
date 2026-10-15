@@ -16,9 +16,12 @@ import 'services/music_metadata_enricher.dart';
 import 'services/music_player_service.dart';
 import 'services/video_audio_cache.dart';
 import 'services/music_playlist_service.dart';
+import 'services/play_history_service.dart';
 import 'services/music_share_link.dart';
 import 'services/share_intent_service.dart';
+import 'services/server_offline_store.dart';
 import 'services/startup_time_service.dart';
+import 'services/subsonic_library_sync.dart';
 import 'services/youtube_feed_service.dart';
 import 'ui/mp3_downloader_page.dart';
 import 'ui/music_mini_player_bar.dart';
@@ -44,9 +47,11 @@ Future<void> main() async {
   MusicTheme.darkMode.value = Config.darkMode;
   await _initStep('music library', MusicLibraryService.instance.load);
   await _initStep('music playlists', MusicPlaylistService.instance.load);
+  await _initStep('play history', PlayHistoryService.instance.load);
   // Before the player: feed playback reads its settings (SponsorBlock)
   // and resume positions.
   await _initStep('subscriptions feed', YoutubeFeedService.instance.load);
+  await _initStep('kept server songs', ServerOfflineStore.instance.load);
   await _initStep('music player', MusicPlayerService.init);
   await _initStep('last played', MusicPlayerService.restoreLastSession);
   // Cached Subscriptions videos are kept a week after last play.
@@ -68,6 +73,9 @@ Future<void> main() async {
     if (!kIsWeb) unawaited(MusicMetadataEnricher.instance.start());
     // Settings → Backup → Automatic backup (no-op while it's off).
     if (!kIsWeb) unawaited(MusicBackupService.maybeRun());
+    // The music server's song list, only in its night window (no-op without
+    // a server) — see SubsonicLibrarySync.
+    SubsonicLibrarySync.instance.start();
   });
 }
 
@@ -116,6 +124,7 @@ class _BestMusicAppState extends State<BestMusicApp>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       unawaited(MusicBackupService.maybeRun());
+      unawaited(SubsonicLibrarySync.instance.maybeSync());
     }
   }
 

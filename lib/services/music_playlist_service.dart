@@ -87,8 +87,11 @@ class MusicPlaylistService {
   MusicPlaylist get favorites => byId(MusicPlaylist.favoritesId)!;
   MusicPlaylist get disliked => byId(MusicPlaylist.dislikedId)!;
 
-  bool isFavorite(String trackId) => favorites.trackIds.contains(trackId);
-  bool isDisliked(String trackId) => disliked.trackIds.contains(trackId);
+  // Tolerant of the playlists not being loaded yet (false, not a crash).
+  bool isFavorite(String trackId) =>
+      byId(MusicPlaylist.favoritesId)?.trackIds.contains(trackId) ?? false;
+  bool isDisliked(String trackId) =>
+      byId(MusicPlaylist.dislikedId)?.trackIds.contains(trackId) ?? false;
 
   Future<void> toggleFavorite(String trackId) async {
     if (isFavorite(trackId)) {
@@ -134,6 +137,42 @@ class MusicPlaylistService {
         playlist.trackIds.add(trackId);
         changed = true;
       }
+    }
+    if (!changed) return;
+    playlists.value = [...playlists.value];
+    await _save();
+  }
+
+  /// Takes [trackId] out of every playlist (a deleted song).
+  Future<void> removeTrackEverywhere(String trackId) async {
+    var changed = false;
+    for (final p in playlists.value) {
+      if (!p.trackIds.contains(trackId)) continue;
+      while (p.trackIds.remove(trackId)) {
+        changed = true;
+      }
+    }
+    if (!changed) return;
+    playlists.value = [...playlists.value];
+    await _save();
+  }
+
+  /// Points every playlist entry for [oldId] at [newId] (a moved phone
+  /// song, whose id follows its path), keeping its place in the list.
+  Future<void> renameTrackId(String oldId, String newId) async {
+    if (oldId == newId) return;
+    var changed = false;
+    for (final p in playlists.value) {
+      if (!p.trackIds.contains(oldId)) continue;
+      for (var i = 0; i < p.trackIds.length; i++) {
+        if (p.trackIds[i] == oldId) {
+          p.trackIds[i] = newId;
+          changed = true;
+        }
+      }
+      // Never twice in one list.
+      final seen = <String>{};
+      p.trackIds.retainWhere(seen.add);
     }
     if (!changed) return;
     playlists.value = [...playlists.value];
@@ -283,16 +322,42 @@ class MusicPlaylistService {
     return normalWeight;
   }
 
+  /// Bounds of [listeningFactor], so no history makes a song (nearly)
+  /// certain or (nearly) impossible on its own.
+  static const double minListeningFactor = 0.25;
+  static const double maxListeningFactor = 4.0;
+
+  /// How [track]'s listening history scales its shuffle weight: plays and
+  /// swipes up count for it (a swipe up twice a play), skips and swipes
+  /// down against it (a swipe down three times a skip), as the square root
+  /// of the ratio — `sqrt((plays + 2·ups + 2) / (skips + 3·downs + 2))`,
+  /// kept within [minListeningFactor]..[maxListeningFactor]. A song with
+  /// no history is 1.0; one played 100 times and skipped 10 is ~2.9; one
+  /// only ever skipped 5 times is ~0.53. It's a ratio, so a well-loved
+  /// song that gets skipped now and then still ranks high.
+  static double listeningFactor(Track track) {
+    final positive = track.playCount + 2 * track.upSwipeCount + 2;
+    final negative = track.skipCount + 3 * track.downSwipeCount + 2;
+    return sqrt(positive / negative)
+        .clamp(minListeningFactor, maxListeningFactor)
+        .toDouble();
+  }
+
+  /// [track]'s full shuffle weight: Favorites/"Don't really like"/normal
+  /// ([weightOf]) times its [listeningFactor].
+  double weightFor(Track track) => weightOf(track.id) * listeningFactor(track);
+
   /// Builds a shuffled play order over [source] using weighted random
   /// sampling without replacement (Efraimidis–Spirakis A-Res): each track
   /// gets a key of `random()^(1/weight)` and the result is sorted
-  /// descending by key. Higher-weight tracks (favorites) tend to land
-  /// earlier; lower-weight tracks (disliked) tend to land much later —
-  /// every track can still appear, just far less often for disliked ones.
+  /// descending by key, with [weightFor] as the weight. Higher-weight
+  /// tracks (favorites, often played/swiped up) tend to land earlier;
+  /// lower-weight tracks (disliked, often skipped/swiped down) tend to
+  /// land much later — every track can still appear, just far less often.
   List<Track> weightedShuffle(List<Track> source) {
     if (source.length <= 1) return [...source];
     final keyed = source.map((t) {
-      final w = max(weightOf(t.id), 0.0001);
+      final w = max(weightFor(t), 0.0001);
       final r = _random.nextDouble().clamp(0.0001, 1.0);
       final key = pow(r, 1 / w).toDouble();
       return MapEntry(key, t);

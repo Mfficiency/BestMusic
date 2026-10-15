@@ -10,6 +10,8 @@ import '../services/music_metadata_enricher.dart';
 import '../services/music_player_service.dart';
 import '../services/speaker_play_guard.dart';
 import '../services/music_playlist_service.dart';
+import 'now_playing_highlight.dart';
+import 'remaining_time_text.dart';
 import 'subpage_app_bar.dart';
 
 /// The library songs whose BPM lies within [min]..[max], slowest first
@@ -75,8 +77,8 @@ class _BpmRangePageState extends State<BpmRangePage> {
   }
 
   void _applyPreset(BpmPreset preset, ({int min, int max}) bounds) {
-    setState(() => _range = RangeValues(preset.min.toDouble(),
-        preset.max.toDouble()));
+    setState(() =>
+        _range = RangeValues(preset.min.toDouble(), preset.max.toDouble()));
     final outside = preset.min < bounds.min || preset.max > bounds.max;
     if (outside) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -222,15 +224,21 @@ class _BpmRangePageState extends State<BpmRangePage> {
               // lookup, then on-device detection) — show that it's on it.
               ValueListenableBuilder<String>(
                 valueListenable: MusicMetadataEnricher.instance.status,
-                builder: (context, status, _) => withoutBpm == 0 ||
-                        status.isEmpty
-                    ? const SizedBox.shrink()
-                    : Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-                        child: Text(status,
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.bodySmall),
-                      ),
+                builder: (context, status, _) =>
+                    withoutBpm == 0 || status.isEmpty
+                        ? const SizedBox.shrink()
+                        : Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                            child: Column(
+                              children: [
+                                Text(status,
+                                    textAlign: TextAlign.center,
+                                    style: theme.textTheme.bodySmall),
+                                const EnrichmentRemainingText(
+                                    textAlign: TextAlign.center),
+                              ],
+                            ),
+                          ),
               ),
               const Divider(),
               Expanded(
@@ -238,7 +246,8 @@ class _BpmRangePageState extends State<BpmRangePage> {
                     ? const Center(
                         child: Padding(
                           padding: EdgeInsets.all(32),
-                          child: Text('No songs in this range — widen it '
+                          child: Text(
+                              'No songs in this range — widen it '
                               'with the slider.',
                               textAlign: TextAlign.center),
                         ),
@@ -247,17 +256,23 @@ class _BpmRangePageState extends State<BpmRangePage> {
                         itemCount: list.length,
                         itemBuilder: (context, i) {
                           final t = list[i];
-                          return ListTile(
-                            leading: const Icon(Icons.music_note),
-                            title: Text(t.title,
-                                maxLines: 1, overflow: TextOverflow.ellipsis),
-                            subtitle: t.artist.isEmpty
-                                ? null
-                                : Text(t.artist,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis),
-                            trailing: Text('${t.bpm} BPM'),
-                            onTap: () => _play(list, startIndex: i),
+                          return NowPlayingHighlight(
+                            trackId: t.id,
+                            builder: (context, isCurrent) => ListTile(
+                              selected: isCurrent,
+                              leading: isCurrent
+                                  ? nowPlayingIcon
+                                  : const Icon(Icons.music_note),
+                              title: Text(t.displayTitle,
+                                  maxLines: 1, overflow: TextOverflow.ellipsis),
+                              subtitle: t.displayArtist.isEmpty
+                                  ? null
+                                  : Text(t.displayArtist,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis),
+                              trailing: Text('${t.bpm} BPM'),
+                              onTap: () => _play(list, startIndex: i),
+                            ),
                           );
                         },
                       ),

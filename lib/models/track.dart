@@ -22,6 +22,14 @@ class Track {
   /// or the 11-character YouTube video id ([TrackSource.youtube]).
   final String? remoteId;
 
+  /// Where a [TrackSource.subsonic] song lives on the server, relative to
+  /// its music folder (`Chill/Kygo - Stay.mp3`) — the server tab's folders.
+  /// Null for other sources and servers that don't report real paths.
+  final String? remotePath;
+
+  /// File size in bytes, when the server reported it ([TrackSource.subsonic]).
+  final int? sizeBytes;
+
   /// Cover art URL (the video thumbnail for [TrackSource.youtube]); shown
   /// on Now Playing and handed to the system media notification. Null for
   /// local/Subsonic tracks, whose art isn't surfaced yet.
@@ -77,6 +85,17 @@ class Track {
   /// manual skip.
   final int playCount;
 
+  /// How many times Next was pressed while this track was playing (not a
+  /// swipe-down, which counts in [downSwipeCount] instead).
+  final int skipCount;
+
+  /// How many times Now Playing was swiped up (favorite) on this track.
+  final int upSwipeCount;
+
+  /// How many times Now Playing was swiped down ("don't really like") on
+  /// this track, or its thumbs-down button pressed.
+  final int downSwipeCount;
+
   /// True once title/artist/album/genre/year were set by hand (the Track
   /// info page's "fill in missing metadata"), rather than read from the
   /// file's tags. A later [MusicLibraryService.rescan] keeps those fields
@@ -97,6 +116,8 @@ class Track {
     required this.source,
     this.filePath,
     this.remoteId,
+    this.remotePath,
+    this.sizeBytes,
     this.artUrl,
     this.youtubeSong = false,
     required this.title,
@@ -109,6 +130,9 @@ class Track {
     this.dateAdded,
     this.deviceDate,
     this.playCount = 0,
+    this.skipCount = 0,
+    this.upSwipeCount = 0,
+    this.downSwipeCount = 0,
     this.metadataEdited = false,
     this.tags = const [],
   });
@@ -149,20 +173,28 @@ class Track {
 
   factory Track.subsonic({
     required String remoteId,
+    String? remotePath,
+    int? sizeBytes,
     required String title,
     String artist = '',
     String album = '',
     int? durationMs,
+    String genre = '',
+    int? year,
     int? bpm,
   }) {
     return Track(
       id: 'subsonic:$remoteId',
       source: TrackSource.subsonic,
       remoteId: remoteId,
+      remotePath: remotePath,
+      sizeBytes: sizeBytes,
       title: title,
       artist: artist,
       album: album,
       durationMs: durationMs,
+      genre: genre,
+      year: year,
       bpm: bpm,
     );
   }
@@ -201,9 +233,47 @@ class Track {
     return dot > 0 ? name.substring(0, dot) : name;
   }
 
+  /// The song's name as lists show it: the title (or, without one, the file
+  /// name), minus a leading "Artist - " — files are often named
+  /// "Artist - Song.m4a", and the artist goes on the line below
+  /// ([displayArtist]).
+  String get displayTitle => _displayParts.$2;
+
+  /// The artist shown under [displayTitle]: the tag, or the "Artist" part of
+  /// an "Artist - Song" name when the tag is empty. '' when unknown.
+  String get displayArtist => _displayParts.$1;
+
+  (String, String) get _displayParts {
+    final name = title.trim().isNotEmpty ? title.trim() : fileBaseName;
+    // A video's title is the video's, not a file name.
+    if (source == TrackSource.youtube && !youtubeSong) return (artist, name);
+    final split = splitArtistAndSong(name);
+    if (split == null) return (artist, name);
+    final (left, right) = split;
+    if (artist.trim().isEmpty) return (left, right);
+    return _sameName(left, artist) ? (artist, right) : (artist, name);
+  }
+
+  static final RegExp _artistSongPattern = RegExp(r'^(.+?)\s+[-–—]\s+(.+)$');
+
+  /// "Artist - Song" (also with – or —) split into (artist, song); null when
+  /// [name] has no such separator.
+  static (String, String)? splitArtistAndSong(String name) {
+    final m = _artistSongPattern.firstMatch(name.trim());
+    if (m == null) return null;
+    final left = m.group(1)!.trim(), right = m.group(2)!.trim();
+    if (left.isEmpty || right.isEmpty) return null;
+    return (left, right);
+  }
+
+  static bool _sameName(String a, String b) {
+    String n(String s) => s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
+    return n(a).isNotEmpty && n(a) == n(b);
+  }
+
   /// Returns a copy with the given fields replaced. Used to update
-  /// per-scan metadata while preserving [dateAdded]/[playCount] across a
-  /// rescan, and to bump [playCount] on playback.
+  /// per-scan metadata while preserving [dateAdded]/[playCount] (and the
+  /// other listening counters) across a rescan, and to bump them.
   Track copyWith({
     String? title,
     String? artist,
@@ -215,6 +285,9 @@ class Track {
     DateTime? dateAdded,
     DateTime? deviceDate,
     int? playCount,
+    int? skipCount,
+    int? upSwipeCount,
+    int? downSwipeCount,
     bool? metadataEdited,
     List<String>? tags,
   }) {
@@ -223,6 +296,8 @@ class Track {
       source: source,
       filePath: filePath,
       remoteId: remoteId,
+      remotePath: remotePath,
+      sizeBytes: sizeBytes,
       artUrl: artUrl,
       youtubeSong: youtubeSong,
       title: title ?? this.title,
@@ -235,6 +310,9 @@ class Track {
       dateAdded: dateAdded ?? this.dateAdded,
       deviceDate: deviceDate ?? this.deviceDate,
       playCount: playCount ?? this.playCount,
+      skipCount: skipCount ?? this.skipCount,
+      upSwipeCount: upSwipeCount ?? this.upSwipeCount,
+      downSwipeCount: downSwipeCount ?? this.downSwipeCount,
       metadataEdited: metadataEdited ?? this.metadataEdited,
       tags: tags ?? this.tags,
     );
@@ -245,6 +323,8 @@ class Track {
         'source': source.name,
         if (filePath != null) 'filePath': filePath,
         if (remoteId != null) 'remoteId': remoteId,
+        if (remotePath != null) 'remotePath': remotePath,
+        if (sizeBytes != null) 'sizeBytes': sizeBytes,
         if (artUrl != null) 'artUrl': artUrl,
         if (youtubeSong) 'youtubeSong': true,
         'title': title,
@@ -258,6 +338,9 @@ class Track {
         if (deviceDate != null)
           'deviceDate': deviceDate!.millisecondsSinceEpoch,
         if (playCount != 0) 'playCount': playCount,
+        if (skipCount != 0) 'skipCount': skipCount,
+        if (upSwipeCount != 0) 'upSwipeCount': upSwipeCount,
+        if (downSwipeCount != 0) 'downSwipeCount': downSwipeCount,
         if (metadataEdited) 'metadataEdited': metadataEdited,
         if (tags.isNotEmpty) 'tags': tags,
       };
@@ -275,6 +358,8 @@ class Track {
       source: source,
       filePath: json['filePath'] as String?,
       remoteId: json['remoteId'] as String?,
+      remotePath: json['remotePath'] as String?,
+      sizeBytes: (json['sizeBytes'] as num?)?.round(),
       artUrl: json['artUrl'] as String?,
       youtubeSong: json['youtubeSong'] as bool? ?? false,
       title: json['title'] as String? ?? '',
@@ -291,11 +376,25 @@ class Track {
           ? DateTime.fromMillisecondsSinceEpoch(deviceDateMs.round())
           : null,
       playCount: (json['playCount'] as num?)?.round() ?? 0,
+      skipCount: (json['skipCount'] as num?)?.round() ?? 0,
+      upSwipeCount: (json['upSwipeCount'] as num?)?.round() ?? 0,
+      downSwipeCount: (json['downSwipeCount'] as num?)?.round() ?? 0,
       metadataEdited: json['metadataEdited'] as bool? ?? false,
       tags: (json['tags'] as List?)?.map((e) => e.toString()).toList() ??
           const [],
     );
   }
+
+  /// Returns a copy carrying [other]'s listening counters — what a rescan
+  /// or server sync keeps from the previous copy of the same track.
+  Track withCountersOf(Track? other) => other == null
+      ? this
+      : copyWith(
+          playCount: other.playCount,
+          skipCount: other.skipCount,
+          upSwipeCount: other.upSwipeCount,
+          downSwipeCount: other.downSwipeCount,
+        );
 
   @override
   bool operator ==(Object other) => other is Track && other.id == id;

@@ -25,6 +25,14 @@ class _YoutubeChannelsPageState extends State<YoutubeChannelsPage> {
   List<YoutubeChannel>? _results;
   bool _searching = false;
   bool _importing = false;
+
+  /// How far an import is (0..1), for the "hh:mm:ss remaining" line.
+  double? _importDone;
+
+  void _onImportProgress(int done, int total) {
+    if (!mounted || total <= 0) return;
+    setState(() => _importDone = done / total);
+  }
   String? _error;
 
   @override
@@ -66,10 +74,14 @@ class _YoutubeChannelsPageState extends State<YoutubeChannelsPage> {
       XTypeGroup(label: 'Tubular/NewPipe export', extensions: ['json']),
     ]);
     if (file == null || !mounted) return;
-    setState(() => _importing = true);
+    setState(() {
+      _importing = true;
+      _importDone = null;
+    });
     String message;
     try {
-      final result = await _service.importNewPipe(await file.readAsString());
+      final result = await _service.importNewPipe(await file.readAsString(),
+          onProgress: _onImportProgress);
       message = 'Imported ${result.added} channel'
           '${result.added == 1 ? '' : 's'}'
           '${result.alreadySubscribed > 0 ? ', ${result.alreadySubscribed} already subscribed' : ''}'
@@ -91,10 +103,14 @@ class _YoutubeChannelsPageState extends State<YoutubeChannelsPage> {
       builder: (_) => const _ChannelNamesDialog(),
     );
     if (text == null || text.trim().isEmpty || !mounted) return;
-    setState(() => _importing = true);
+    setState(() {
+      _importing = true;
+      _importDone = null;
+    });
     String message;
     try {
-      final result = await _service.importChannelNames(text);
+      final result = await _service.importChannelNames(text,
+          onProgress: _onImportProgress);
       message = 'Subscribed to ${result.added} channel'
           '${result.added == 1 ? '' : 's'}'
           '${result.alreadySubscribed > 0 ? ', ${result.alreadySubscribed} already subscribed' : ''}'
@@ -192,7 +208,11 @@ class _YoutubeChannelsPageState extends State<YoutubeChannelsPage> {
               ),
             ),
           ),
-          EstimatedProgressBar(active: _searching || _importing),
+          EstimatedProgressBar(
+            active: _searching || _importing,
+            value: _importing ? _importDone : null,
+            showRemaining: _importing,
+          ),
           if (_error != null)
             Padding(
               padding: const EdgeInsets.all(12),

@@ -12,19 +12,26 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// One release of the app with [tag] as GitHub's releases list has it.
+/// [body] is the release notes (a build footer such as
+/// "- Built: 2026-10-15 14:02 in 3m 12s"); [size] the APK asset's bytes.
 Map<String, Object?> release(String tag,
-        {bool prerelease = false, bool draft = false, bool apk = true}) =>
+        {bool prerelease = false,
+        bool draft = false,
+        bool apk = true,
+        String body = 'notes',
+        int? size}) =>
     {
       'tag_name': tag,
       'name': tag,
       'draft': draft,
       'prerelease': prerelease,
       'html_url': 'https://github.com/Mfficiency/BestMusic/releases/tag/$tag',
-      'body': 'notes',
+      'body': body,
       'assets': [
         if (apk)
           {
             'name': '$tag.apk',
+            if (size != null) 'size': size,
             'url': 'https://api.github.com/repos/Mfficiency/BestMusic/'
                 'releases/assets/${tag.hashCode}',
             'browser_download_url':

@@ -100,9 +100,13 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    Future<void> openDrawerEntry(String label) async {
+    Future<void> openDrawerEntry(String label, {bool inTools = false}) async {
       await tester.tap(find.byTooltip('Open navigation menu'));
       await tester.pumpAndSettle();
+      if (inTools) {
+        await tester.tap(find.text('Tools'));
+        await tester.pumpAndSettle();
+      }
       await tester.tap(find.text(label));
       await tester.pumpAndSettle();
     }
@@ -121,13 +125,13 @@ void main() {
     await capture('music_playlist_detail_page');
     await popCurrentPage();
 
-    // New rule playlist editor — always the first Playlists-tab entry.
+    // New rule playlist editor — listed right below the hand-made playlists.
     await tester.tap(find.text('New rule playlist'));
     await tester.pumpAndSettle();
     await capture('rule_playlist_editor_page');
     await popCurrentPage();
 
-    await openDrawerEntry('MP3 Downloader');
+    await openDrawerEntry('MP3 Downloader', inTools: true);
     await capture('mp3_downloader_page');
     await tester.tap(find.byTooltip('Downloads'));
     await tester.pumpAndSettle();

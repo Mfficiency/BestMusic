@@ -13,6 +13,7 @@ import '../services/music_share_link.dart';
 import '../services/share_intent_service.dart';
 import '../services/track_title.dart';
 import 'estimated_progress_bar.dart';
+import 'remaining_time_text.dart';
 import 'mp3_downloads_page.dart';
 import 'subpage_app_bar.dart';
 
@@ -654,6 +655,11 @@ class _Mp3DownloaderPageState extends State<Mp3DownloaderPage> {
                             '${queued > 0 ? ' · $queued waiting' : ''}'
                         : 'Contacting YouTube…',
                     style: theme.textTheme.bodySmall,
+                  ),
+                  RemainingTimeText(
+                    key: ValueKey('remaining-${job.id}'),
+                    done: job.progress,
+                    startedAt: job.startedAt,
                   ),
                 ],
               ),

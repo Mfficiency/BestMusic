@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:best_music/models/track.dart';
 import 'package:best_music/models/youtube_feed.dart';
 import 'package:best_music/services/mp3_downloader_service.dart';
+import 'package:best_music/services/now_playing.dart';
 import 'package:best_music/services/youtube_feed_service.dart';
 import 'package:best_music/ui/music_settings_page.dart';
 import 'package:best_music/ui/playback_speed_sheet.dart';
@@ -566,5 +567,30 @@ void main() {
         '14 Aug');
     expect(formatVideoDuration(const Duration(hours: 1, minutes: 2, seconds: 3)),
         '1:02:03');
+  });
+
+  testWidgets('the playing video is highlighted with "Now playing" and not '
+      'dimmed as played', (tester) async {
+    final video = FeedVideo(
+        videoId: 'np1', title: 'Playing talk', channelId: 'c', channelName: 'Ch');
+    Widget tile() => MaterialApp(
+          home: Scaffold(
+            body: FeedVideoTile(
+              video: video,
+              progress: null,
+              onTap: () {},
+              onInfo: () {},
+            ),
+          ),
+        );
+    addTearDown(() => NowPlaying.trackId.value = null);
+
+    NowPlaying.trackId.value = null;
+    await tester.pumpWidget(tile());
+    expect(find.text('Now playing'), findsNothing);
+
+    NowPlaying.trackId.value = 'youtube:np1';
+    await tester.pump();
+    expect(find.text('Now playing'), findsOneWidget);
   });
 }

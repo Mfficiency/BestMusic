@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.41] - 2026-10-15
+- Changelog: each version now shows when it was built, how long the build took and the size of its APK (from the version's GitHub release; versions without that info keep their own build notes). Updates package 1.5.0.
+
 ## [0.3.40] - 2026-10-15
 - Songs: the ⋮ menu has 'Move to folder' (pick a folder or make a new one) and 'Delete' (asks first), for songs on your phone and on the music server; playlists and favourites follow the song. Moving or deleting server songs needs an update of the upload service on the Pi.
 - Search also looks on the music server, and songs from the server show a little cloud icon.

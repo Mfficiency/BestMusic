@@ -306,7 +306,8 @@ class _ChangelogPageState extends State<ChangelogPage> {
   }
 
   /// One release: version (with a check mark on the installed one) and
-  /// date, its changes as bullets, build metadata as small chips.
+  /// date, its changes as bullets, then when it was built, how long the
+  /// build took and the APK size as small chips.
   Widget _buildReleaseCard(ChangelogRelease release) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
@@ -373,29 +374,50 @@ class _ChangelogPageState extends State<ChangelogPage> {
                   ],
                 ),
               ),
-            if (notes.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  for (final note in notes)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: scheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(note,
-                          style: theme.textTheme.labelSmall
-                              ?.copyWith(color: scheme.onSurfaceVariant)),
-                    ),
-                ],
-              ),
-            ],
+            // When this version was built, how long the build took and its
+            // APK size, from its GitHub release (the package's
+            // [ReleaseBuildInfo]); the CHANGELOG.md build lines only while
+            // that loads or when the release says nothing, never both.
+            if (updates != null)
+              ReleaseBuildInfo(
+                key: ValueKey('changelog-build-info-${release.version}'),
+                controller: updates,
+                version: release.version,
+                padding: const EdgeInsets.only(top: 10),
+                fallback: _buildNotes(notes),
+              )
+            else
+              _buildNotes(notes),
           ],
         ),
+      ),
+    );
+  }
+
+  /// The CHANGELOG.md build lines ("Local build:", "APK size:", …) as
+  /// small chips, the same look as the release's build facts.
+  Widget _buildNotes(List<String> notes) {
+    if (notes.isEmpty) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          for (final note in notes)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(note,
+                  style: theme.textTheme.labelSmall
+                      ?.copyWith(color: scheme.onSurfaceVariant)),
+            ),
+        ],
       ),
     );
   }

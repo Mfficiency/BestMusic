@@ -1996,3 +1996,20 @@ address, user name and password are also kept in `music_server.json` (same SafeF
 rewritten only when they change; `load` takes the login from there whenever `settings.json`
 has no server address. A failed "Connect" in the Server tab now puts the previous login back
 instead of clearing just the user name. Tests: `test/music/config_persistence_test.dart`.
+
+### 10.6s Build facts per version in the Changelog (Best Music 0.3.41)
+
+Each release card on the Changelog page (`lib/ui/changelog_page.dart`) ends with small chips
+saying when that version was built, how long the build took and how big its APK is ("Built
+15.10.2026, 14:02", "Build time 3m 12s", "APK 19.4 MB", in the app's date format). They come
+from the updates package (1.5.0)'s `ReleaseBuildInfo` on `AppUpdates.controller`: the
+version's GitHub release (the highest build of that x.y.z, any channel) — its notes' build
+footer ("- Built: … in 3m 12s", "- Build duration: …"; else the release's publish time) and the
+APK asset's size — from the same cached releases list the version sheet uses (one request,
+refreshed by pull-down). The CHANGELOG.md build lines (`isChangelogBuildNote`: "Local build:",
+"Build duration (apk):", "APK size:", …) are the `fallback`: shown while the list loads, when
+the version has no release or its release says nothing, and when there is no controller —
+never together with the release's chips. The strings are the package's English defaults
+(`releaseBuilt`, `releaseBuildTime`, `releaseApkSize`). Tests:
+`test/music/changelog_page_test.dart` (fake releases through `test/update/update_fakes.dart`,
+whose `release()` takes `body:` and `size:`).

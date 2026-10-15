@@ -134,3 +134,6 @@ testbuilds/
 
 # Kotlin incremental-compile session files (build artifacts)
 android/.kotlin/
+
+# Best Music Organizer: settings, song index, trash
+organizer/local/

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Music Organizer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <nav id="side">
+    <div class="brand">Music Organizer</div>
+    <div class="group">Library</div>
+    <a href="#songs" data-view="songs">Songs <span class="count" id="count-songs"></span></a>
+    <a href="#artists" data-view="artists">Artists</a>
+    <a href="#albums" data-view="albums">Albums</a>
+    <a href="#genres" data-view="genres">Genres</a>
+    <a href="#folders" data-view="folders">Folders</a>
+    <div class="group">Playlists <button class="mini" id="new-playlist" title="New playlist">+</button></div>
+    <div id="playlist-links"></div>
+    <div class="group">Get music</div>
+    <a href="#get/search" data-view="get/search">Search YouTube</a>
+    <a href="#get/artist" data-view="get/artist">Artist's top songs</a>
+    <a href="#get/chart" data-view="get/chart">Charts</a>
+    <a href="#get/ask" data-view="get/ask">Ask for a list</a>
+    <a href="#get/paste" data-view="get/paste">Paste a list</a>
+    <div class="group">Tidy up</div>
+    <a href="#tidy/names" data-view="tidy/names">Clean up names</a>
+    <a href="#tidy/group" data-view="tidy/group">Group into folders</a>
+    <a href="#tidy/dupes" data-view="tidy/dupes">Duplicates</a>
+    <a href="#tidy/missing" data-view="tidy/missing">Missing info</a>
+    <div class="group">Server</div>
+    <a href="#sync" data-view="sync">Sync to Pi <span class="count" id="count-pending"></span></a>
+    <a href="#settings" data-view="settings">Settings</a>
+    <div id="jobs"></div>
+  </nav>
+  <main id="main"></main>
+  <footer id="player">
+    <button id="play-toggle" class="icon" title="Play / pause (space)">▶</button>
+    <div id="now">Nothing playing</div>
+    <audio id="audio" preload="none"></audio>
+  </footer>
+</div>
+<div id="modal-root"></div>
+<div id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>

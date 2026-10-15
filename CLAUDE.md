@@ -20,6 +20,9 @@ relates to BestToDo, where it came from).
   installs from before the split).
 - Version bump: `dart run tool/bump_version.dart <x.y.z> "<changelog entry>"` (pubspec.yaml +
   CHANGELOG.md).
+- Organizer (computer-side Python tool in `organizer/`, see its README and SPEC.md §10.6s):
+  `python -m unittest discover -s organizer/tests` (needs ffmpeg); run with
+  `python organizer/organizer.py`.
 - Live checks (network, not part of `flutter test`): `flutter test tool/check_mp3_download.dart`,
   `dart run tool/scan_music_metadata.dart`.
 

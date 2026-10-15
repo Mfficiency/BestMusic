@@ -317,6 +317,23 @@ class MusicLibraryService {
     return merged.length;
   }
 
+  /// Takes the songs with [ids] out of the library (deleted songs).
+  Future<void> removeTracks(Set<String> ids) async {
+    if (!tracks.value.any((t) => ids.contains(t.id))) return;
+    tracks.value = tracks.value.where((t) => !ids.contains(t.id)).toList();
+    await _save();
+  }
+
+  /// Puts [track] in place of the song with [oldId] (a moved song: a phone
+  /// song's id changes with its path), or adds it when that isn't there.
+  Future<void> replaceTrack(String oldId, Track track) async {
+    tracks.value = [
+      ...tracks.value.where((t) => t.id != oldId && t.id != track.id),
+      track,
+    ]..sort(_byTitle);
+    await _save();
+  }
+
   /// Takes every music server song out of the library (server removed).
   Future<void> removeServerTracks() async {
     if (_serverTracks().isEmpty) return;

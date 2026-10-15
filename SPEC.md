@@ -575,6 +575,26 @@ like OneDrive.
   login: the Subsonic token on every request, checked by the Pi against Navidrome. They land in
   the server's `Phone/` folder and appear after its nightly scan; its nightly clean-up moves
   duplicates to a 30-day trash.
+- **Delete / Move to folder** (0.3.40, `TrackFileActions`, `lib/ui/track_file_menu.dart`): in
+  every song row's ⋮ menu (`TrackListView`: Tracks, Folders, playlists, search) and on server
+  songs in the Server tab, for phone files and server songs (not YouTube streams). Delete asks
+  first. Move offers the top folder, every folder (music folder subfolders / server catalog
+  folders) and "New folder…" (`cleanFolder`: no `.`/`..`, forward slashes). A phone song is
+  deleted/renamed on disk (copy + delete if a rename fails; never over an existing file); the
+  library entry follows (`removeTracks` / `replaceTrack`) and playlists too
+  (`removeTrackEverywhere`, `renameTrackId` — a moved file's `local:<path>` id changes). A server
+  song goes to the Pi's upload service, same token auth as upload:
+  `POST /api/music/delete` `{"id", "path"}` → 200, and `POST /api/music/move`
+  `{"id", "path", "to"}` → 200 `{"path": <new path>}`; `path`/`to` as Navidrome reports them
+  without a leading slash, `id` the Subsonic song id. On success the catalog and library are
+  updated right away (the Pi's next scan confirms). **These two endpoints still have to be added
+  to `mirror-music-upload` in the MagicMirror repo**; until then the Pi answers 404 and the app
+  says the server needs an update.
+- **Search** (0.3.40, `LibrarySearchResults`): library matches (synced server songs among them)
+  plus, with a server set up, the server's own `search3` for the query (400 ms after typing
+  stops) — songs the library doesn't have yet and that aren't on the phone. Server songs show a
+  cloud icon (`trackSourceIcon`, tooltip "On the music server") in every song list. YouTube is
+  the fallback only when both come up empty.
 - Android needs `usesCleartextTraffic` for the plain-http home server.
 
 **Home-screen widgets and notification/lock screen:** see §8 for the two widgets

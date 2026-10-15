@@ -140,6 +140,42 @@ class MusicPlaylistService {
     await _save();
   }
 
+  /// Takes [trackId] out of every playlist (a deleted song).
+  Future<void> removeTrackEverywhere(String trackId) async {
+    var changed = false;
+    for (final p in playlists.value) {
+      if (!p.trackIds.contains(trackId)) continue;
+      while (p.trackIds.remove(trackId)) {
+        changed = true;
+      }
+    }
+    if (!changed) return;
+    playlists.value = [...playlists.value];
+    await _save();
+  }
+
+  /// Points every playlist entry for [oldId] at [newId] (a moved phone
+  /// song, whose id follows its path), keeping its place in the list.
+  Future<void> renameTrackId(String oldId, String newId) async {
+    if (oldId == newId) return;
+    var changed = false;
+    for (final p in playlists.value) {
+      if (!p.trackIds.contains(oldId)) continue;
+      for (var i = 0; i < p.trackIds.length; i++) {
+        if (p.trackIds[i] == oldId) {
+          p.trackIds[i] = newId;
+          changed = true;
+        }
+      }
+      // Never twice in one list.
+      final seen = <String>{};
+      p.trackIds.retainWhere(seen.add);
+    }
+    if (!changed) return;
+    playlists.value = [...playlists.value];
+    await _save();
+  }
+
   /// Creates a new (non-system) playlist, e.g. from an M3U import. Returns
   /// the created playlist.
   Future<MusicPlaylist> createPlaylist(String name, List<String> trackIds,

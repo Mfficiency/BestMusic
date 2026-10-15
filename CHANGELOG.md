@@ -5,6 +5,10 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.40] - 2026-10-15
+- Songs: the ⋮ menu has 'Move to folder' (pick a folder or make a new one) and 'Delete' (asks first), for songs on your phone and on the music server; playlists and favourites follow the song. Moving or deleting server songs needs an update of the upload service on the Pi.
+- Search also looks on the music server, and songs from the server show a little cloud icon.
+
 ## [0.3.39] - 2026-10-15
 - Server tab: shows how many songs the server itself knows and when it last scanned its music folder, so you can see when songs simply haven't been picked up by the server yet. New 'Scan server' button: asks the server to look for new songs right away (needs the server's admin account), waits until it is done and then syncs. If the server lists fewer songs than it knows, Sync now fetches them album by album instead. Fixed: the server's top folder showed without a name.
 

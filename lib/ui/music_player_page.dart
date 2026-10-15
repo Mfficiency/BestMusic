@@ -13,6 +13,8 @@ import '../services/music_library_service.dart';
 import '../services/server_catalog.dart';
 import '../services/music_player_service.dart';
 import '../services/speaker_play_guard.dart';
+import '../services/subsonic_client.dart';
+import '../services/track_file_actions.dart';
 import '../services/music_playlist_service.dart';
 import '../services/music_youtube_fallback.dart';
 import '../utils/artist_utils.dart';
@@ -34,6 +36,7 @@ import 'rule_playlist_editor_page.dart';
 import 'startup_times_page.dart';
 import 'server_tab.dart';
 import 'subpage_app_bar.dart';
+import 'track_file_menu.dart';
 import 'track_metadata_page.dart';
 import 'youtube_feed_page.dart';
 
@@ -392,18 +395,11 @@ List<Track> _filterTracks(List<Track> tracks, String query) {
 /// searches YouTube instead ([YoutubeSearchFallback]).
 class _MusicSearchDelegate extends SearchDelegate<void> {
   Widget _buildTrackResults(BuildContext context) {
-    final tracks = _filterTracks(MusicLibraryService.instance.tracks.value, query);
-    if (tracks.isEmpty) {
-      final trimmed = query.trim();
-      if (trimmed.isEmpty) {
-        return const Center(child: Text('Search by title or artist'));
-      }
-      if (!Mp3DownloaderService.instance.isSupported) {
-        return Center(child: Text('No matches for "$query"'));
-      }
-      return YoutubeSearchFallback(key: ValueKey(trimmed), query: trimmed);
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) {
+      return const Center(child: Text('Search by title or artist'));
     }
-    return TrackListView(tracks: tracks);
+    return LibrarySearchResults(key: ValueKey(trimmed), query: trimmed);
   }
 
   @override
@@ -428,6 +424,96 @@ class _MusicSearchDelegate extends SearchDelegate<void> {
 
   @override
   Widget buildSuggestions(BuildContext context) => _buildTrackResults(context);
+}
+
+/// The leading icon of a song row: a cloud for a song on the music server,
+/// a note for everything else.
+Widget trackSourceIcon(Track track) => track.source == TrackSource.subsonic
+    ? const Tooltip(
+        message: 'On the music server', child: Icon(Icons.cloud_outlined))
+    : const Icon(Icons.music_note);
+
+/// The library search's results for [query]: the library's matches (server
+/// songs already synced among them, with a cloud icon) plus — when a music
+/// server is set up — whatever the server itself finds that the library
+/// doesn't have yet (after a short pause in typing). When neither has
+/// anything, it falls back to YouTube ([YoutubeSearchFallback]).
+class LibrarySearchResults extends StatefulWidget {
+  const LibrarySearchResults({super.key, required this.query});
+
+  final String query;
+
+  /// Pause after the last keystroke before asking the server.
+  static const Duration debounce = Duration(milliseconds: 400);
+
+  @override
+  State<LibrarySearchResults> createState() => _LibrarySearchResultsState();
+}
+
+class _LibrarySearchResultsState extends State<LibrarySearchResults> {
+  Timer? _debounce;
+  bool _searchingServer = false;
+  List<Track> _fromServer = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    if (SubsonicClient.instance.isConfigured) {
+      _searchingServer = true;
+      _debounce = Timer(LibrarySearchResults.debounce, _searchServer);
+    }
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _searchServer() async {
+    final found = await SubsonicClient.instance.search(widget.query);
+    if (!mounted) return;
+    setState(() {
+      _fromServer = found;
+      _searchingServer = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<List<Track>>(
+      valueListenable: MusicLibraryService.instance.tracks,
+      builder: (context, library, _) {
+        final local = _filterTracks(library, widget.query);
+        final known = {for (final t in library) t.id};
+        // A server song that is also on the phone is already in the library
+        // as the phone's copy; show that one only.
+        final onPhone = SameSongIndex(
+            library.where((t) => t.source == TrackSource.local));
+        final extra = [
+          for (final t in _fromServer)
+            if (!known.contains(t.id) && onPhone.match(t) == null) t
+        ];
+        final tracks = [...local, ...extra];
+        if (tracks.isEmpty) {
+          if (_searchingServer) {
+            return const Align(
+                alignment: Alignment.topCenter,
+                child: EstimatedProgressBar(active: true));
+          }
+          if (!Mp3DownloaderService.instance.isSupported) {
+            return Center(child: Text('No matches for "${widget.query}"'));
+          }
+          return YoutubeSearchFallback(
+              key: ValueKey(widget.query), query: widget.query);
+        }
+        return Column(children: [
+          if (_searchingServer) const EstimatedProgressBar(active: true),
+          Expanded(child: TrackListView(tracks: tracks)),
+        ]);
+      },
+    );
+  }
 }
 
 /// Shown by the library search when nothing matches [query]: searches
@@ -1359,7 +1445,7 @@ class _TrackListViewState extends State<TrackListView> {
                   final isFavorite =
                       MusicPlaylistService.instance.isFavorite(track.id);
                   return ListTile(
-                    leading: const Icon(Icons.music_note),
+                    leading: trackSourceIcon(track),
                     title: Text(_trackDisplayTitle(track),
                         maxLines: 1, overflow: TextOverflow.ellipsis),
                     // Always two lines (matching the prototype row height).
@@ -1392,6 +1478,16 @@ class _TrackListViewState extends State<TrackListView> {
                                 builder: (_) =>
                                     TrackMetadataPage(trackId: track.id),
                               ));
+                            }
+                            break;
+                          case 'move':
+                            if (context.mounted) {
+                              await pickFolderAndMove(context, track);
+                            }
+                            break;
+                          case 'delete':
+                            if (context.mounted) {
+                              await confirmAndDeleteTrack(context, track);
                             }
                             break;
                         }
@@ -1451,6 +1547,28 @@ class _TrackListViewState extends State<TrackListView> {
                                     overflow: TextOverflow.ellipsis)),
                           ]),
                         ),
+                        if (TrackFileActions.canManage(track))
+                          const PopupMenuItem(
+                            value: 'move',
+                            child: Row(children: [
+                              Icon(Icons.drive_file_move_outline, size: 18),
+                              SizedBox(width: 8),
+                              Flexible(
+                                  child: Text('Move to folder',
+                                      overflow: TextOverflow.ellipsis)),
+                            ]),
+                          ),
+                        if (TrackFileActions.canManage(track))
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Row(children: [
+                              Icon(Icons.delete_outline, size: 18),
+                              SizedBox(width: 8),
+                              Flexible(
+                                  child: Text('Delete',
+                                      overflow: TextOverflow.ellipsis)),
+                            ]),
+                          ),
                       ],
                     ),
                     onTap: () => _play(tracks, startIndex: index),

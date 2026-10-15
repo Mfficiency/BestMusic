@@ -17,6 +17,7 @@ import '../services/task_progress.dart';
 import 'now_playing_page.dart';
 import 'remaining_time_text.dart';
 import 'subpage_app_bar.dart';
+import 'track_file_menu.dart';
 
 /// The Server tab: the music server's folders (e.g. the Navidrome on the
 /// MagicMirror Pi), where every folder and song can be kept on this phone or
@@ -150,7 +151,8 @@ class ServerFolderView extends StatelessWidget {
         _OfflineMenu(
             path: ServerOfflineStore.pathOf(song),
             songs: [song],
-            name: song.title),
+            name: song.title,
+            song: song),
       ]),
       onTap: () async {
         if (!await SpeakerPlayGuard.confirmPlay(context)) return;
@@ -288,35 +290,64 @@ class _ServerHeader extends StatelessWidget {
   }
 }
 
-/// "Always keep on this device" / "Free up space" for a folder or song.
+/// "Always keep on this device" / "Free up space" for a folder or song; for
+/// a single [song] also "Move to folder" and "Delete" (on the server).
 class _OfflineMenu extends StatelessWidget {
   const _OfflineMenu(
-      {required this.path, required this.songs, required this.name});
+      {required this.path,
+      required this.songs,
+      required this.name,
+      this.song});
 
   final String path;
   final List<Track> songs;
   final String name;
+  final Track? song;
 
   @override
   Widget build(BuildContext context) {
-    return PopupMenuButton<bool>(
-      tooltip: 'Keep on this phone',
-      onSelected: (keep) => keep
-          ? ServerOfflineStore.instance.keep(path)
-          : freeUpSpace(context, path: path, songs: songs, name: name),
-      itemBuilder: (_) => const [
-        PopupMenuItem(
-          value: true,
+    final song = this.song;
+    return PopupMenuButton<String>(
+      tooltip: song != null ? 'More options' : 'Keep on this phone',
+      onSelected: (value) async {
+        switch (value) {
+          case 'keep':
+            await ServerOfflineStore.instance.keep(path);
+          case 'free':
+            await freeUpSpace(context, path: path, songs: songs, name: name);
+          case 'move':
+            if (song != null) await pickFolderAndMove(context, song);
+          case 'delete':
+            if (song != null) await confirmAndDeleteTrack(context, song);
+        }
+      },
+      itemBuilder: (_) => [
+        const PopupMenuItem(
+          value: 'keep',
           child: ListTile(
               leading: Icon(Icons.offline_pin_outlined),
               title: Text('Always keep on this device')),
         ),
-        PopupMenuItem(
-          value: false,
+        const PopupMenuItem(
+          value: 'free',
           child: ListTile(
               leading: Icon(Icons.cloud_outlined),
               title: Text('Free up space')),
         ),
+        if (song != null) ...[
+          const PopupMenuItem(
+            value: 'move',
+            child: ListTile(
+                leading: Icon(Icons.drive_file_move_outline),
+                title: Text('Move to folder')),
+          ),
+          const PopupMenuItem(
+            value: 'delete',
+            child: ListTile(
+                leading: Icon(Icons.delete_outline),
+                title: Text('Delete')),
+          ),
+        ],
       ],
     );
   }

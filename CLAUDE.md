@@ -58,5 +58,6 @@ relates to BestToDo, where it came from).
 - Icon buttons carry tooltips; tests find them by tooltip.
 - Anything that can take more than 30 s shows `RemainingTimeText` ("hh:mm:ss remaining",
   `lib/ui/remaining_time_text.dart`, on the updates package's `RemainingTime`) below its
-  progress; `EstimatedProgressBar(showRemaining: true)` does it for that bar. SPEC.md › Time left.
+  progress; `EstimatedProgressBar(showRemaining: true)` does it for that bar, `TaskRemainingText`
+  for a service's `ValueNotifier<TaskProgress?>` (server upload/sync/keep). SPEC.md › Time left.
 - Don't introduce new deprecation warnings.

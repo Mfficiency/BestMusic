@@ -512,18 +512,61 @@ basename (case/extension-insensitive — the common case, since a playlist made 
 device/app rarely carries this app's exact folder path), and reports what didn't match rather
 than silently dropping it. A match creates an ordinary (non-system) `MusicPlaylist`.
 
-**Self-hosted server prep** (`lib/services/subsonic_client.dart`'s `SubsonicClient`,
-`lib/models/track.dart`'s `TrackSource.subsonic`): a small Subsonic/OpenSubsonic API client
-(Navidrome, Airsonic, Gonic, … — the most widely supported self-hosted music protocol) for
-when a server is configured in Settings → Music Player (`Config.subsonicServerUrl/Username/
-Password`). Auth follows the Subsonic token scheme — `token = md5(password + fresh salt)` sent
-with every request, so the plaintext password never goes on the wire (it is still stored in
-plaintext on-device, same caveat as `Config.todoistApiToken`). Implemented so far: `ping()`
-(Settings' "Test connection"), `search()` (`search3`, full-text), and `streamUri(songId)` (the
-URL `MusicAudioHandler._resolveUri` streams a `TrackSource.subsonic` track from). A remote
-track is just another `Track` in the same queue/favorites/shuffle machinery as a local one —
-there is no separate "remote mode". Not yet wired into a server-browsing UI (artists/albums);
-that is the natural next step once a server is actually connected.
+**Music server (Best Music 0.3.34)** (`lib/services/subsonic_client.dart`'s `SubsonicClient`,
+`lib/services/subsonic_library_sync.dart`'s `SubsonicLibrarySync`, `TrackSource.subsonic`): a
+Subsonic/OpenSubsonic server (Navidrome, Airsonic, Gonic, …), typically the Navidrome on the
+MagicMirror Pi (`http://hally.local:4533`, see the MagicMirror repo's
+`headless-mirror/docs/music-server.md`). Settings → **Music server** has the address, user name
+and password (`Config.subsonicServerUrl/Username/Password`), Test connection (`ping`), Sync now,
+Automatic sync (`Config.subsonicSyncWindow`, default `01:00-06:00`) and Remove this server.
+Auth follows the Subsonic token scheme: `token = md5(password + fresh salt)` on every request,
+so the plaintext password never goes on the wire (it is stored in plaintext on the device).
+- **Streaming:** `streamUri(songId)` asks for `format=raw`, the original file, so a small
+  server never transcodes; `MusicAudioHandler._audioSourceFor` plays it like any other URL.
+- **Library:** a sync lists every song with `search3` (empty query, `songOffset` pages of
+  `SubsonicClient.pageSize` = 500; `allSongs()` returns null if any page fails, so a half list
+  never replaces a full one) and `MusicLibraryService.replaceServerTracks` puts them in the
+  same library as the folder's songs (id `subsonic:<id>`; date added, play count, tags and hand
+  edits kept across syncs; songs gone from the server leave). A folder `rescan` keeps the
+  server songs. Title, artist, album, genre, year and BPM come from the server's own tag scan;
+  the phone never downloads server songs to analyse them (`MusicMetadataEnricher` only handles
+  folder songs).
+- **When:** the full listing is the one bulk job the app asks of the server, so it runs on its
+  own only inside the sync window (the same night window the Pi's Navidrome scans in), at most
+  once per window (`SubsonicLibrarySync.minGap` 12 h), while the app is running: at start, on
+  resume and every 15 minutes. Sync now runs it right away. Playback needs no sync.
+
+**Server tab (Best Music 0.3.35)** (`lib/ui/server_tab.dart`, `lib/services/server_catalog.dart`,
+`server_offline_store.dart`, `server_upload_service.dart`): the music server's songs as folders,
+like OneDrive.
+- **Catalog:** every sync stores the server's full song list in `ServerCatalog`
+  (`server_catalog.json`), with each song's real folder path (`Track.remotePath`; the Pi's
+  Navidrome reports real paths, `[Subsonic] DefaultReportRealPath`) and size. The library gets
+  the same songs minus those already on the phone (`sameSong`: same file name, or same artist +
+  title normalised with lengths within 2 s, the rule the Pi's nightly clean-up uses;
+  `SameSongIndex` keeps it quick), so every song shows once. The Folders tab groups server songs
+  under `Server/<folder>`.
+- **The tab:** without a login it shows the login form (address prefilled
+  `http://hally.local:4533`, Connect = ping, save, sync). With one it shows a header (server,
+  song count, last sync, Sync now, Upload phone music), then folders and songs. Each has an
+  offline-state icon (online only / downloading / on this phone / partly) and a menu. Tapping a
+  song plays that folder from it.
+- **Always keep on this device / Free up space** (`ServerOfflineStore`, `server_offline.json`):
+  rules on folders and songs, and the nearest rule above a song wins. Kept songs download one at
+  a time (`/rest/download`, the original file, a background-work notification) into
+  `<documents>/server_music/<server path>`, and `MusicAudioHandler` plays that copy instead of
+  streaming. New songs in a kept folder download after the next sync; freed songs' copies are
+  deleted. Free up space also offers to delete the phone's own copies (music-folder files
+  matching songs in that folder, e.g. ones uploaded from here) after a confirm showing the MB.
+  The library then rescans and the server copies take their place.
+- **Upload phone music** (`ServerUploadService`): asks the Pi's upload service (the server's host,
+  port 4534, `mirror-music-upload` in the MagicMirror repo) which phone songs it lacks (`POST
+  /api/music/check`, same name and size anywhere, or the same path in `Phone/`). It then sends
+  them one at a time (`PUT /api/music/upload?path=<path under the music folder>`, streamed). Same
+  login: the Subsonic token on every request, checked by the Pi against Navidrome. They land in
+  the server's `Phone/` folder and appear after its nightly scan; its nightly clean-up moves
+  duplicates to a 30-day trash.
+- Android needs `usesCleartextTraffic` for the plain-http home server.
 
 **Home-screen widgets and notification/lock screen:** see §8 for the two widgets
 (`MusicMiniWidgetProvider`/`MusicControlsWidgetProvider`) and §9 for the `audio_service`
@@ -570,7 +613,8 @@ and the search fallback shows that message instead of a generic connection hint.
 **Settings → Music Player** (removed from BestToDo in 0.2.98, §10.6n; was `lib/ui/settings_page.dart`, section 16): folder picker (shares
 the `file_selector` `getDirectoryPath` pattern §4.4/§10.6d use), an "Excluded subfolders"
 dialog populated from `MusicLibraryService.listSubfolders`, and the Subsonic server
-URL/username/password fields with Save/Test connection. `Config.featureKeys`/
+URL/username/password fields with Save/Test connection (in Best Music these are Settings →
+Music server since 0.3.34). `Config.featureKeys`/
 `startToolOptions` gained a `music_player` entry (`_ToolEntry` in `home_page.dart`, case in
 `_buildToolPage`), same wiring pattern as every other tool.
 
@@ -648,7 +692,9 @@ page in the same sense BestToDo's home page is: `buildSubpageAppBar`'s "Menu" bu
 every page the drawer pushes: MP3 Downloader, Wishlist, Settings, Changelog, Startup Times, App
 Logs, About) opens it via that shared key, and its own app bar (no `buildSubpageAppBar`, since as the
 root route it has no "Back to Home" to offer) gets Flutter's automatic drawer-hamburger button
-for free from `Scaffold.drawer` being non-null. `lib/ui/music_settings_page.dart` is a
+for free from `Scaffold.drawer` being non-null. Drawer order (0.3.33): Home · Settings ·
+Subscriptions · **Tools** (a collapsed `ExpansionTile` holding Songs by BPM, MP3 Downloader and
+Wishlist) · Changelog · About · App Logs · Startup Times. `lib/ui/music_settings_page.dart` is a
 standalone settings page — the music folder picker and excluded-subfolders dialog are
 reimplemented from BestToDo's Settings → Music Player section (`settings_page.dart`) since that
 page is one monolithic widget tightly coupled to BestToDo's full settings list. Since Best
@@ -1084,9 +1130,9 @@ it fires) or end-of-song (`MusicAudioHandler`'s completion listener calls `consu
 when set, pauses and rewinds instead of advancing). `extend()` adds time, `cancel()` turns it off.
 One picker, `showSleepTimerSheet` (`lib/ui/sleep_timer_sheet.dart`: 5/10/15/30/45/60/90 min, End of
 current song, Custom… minutes, plus Add 10 minutes / Turn off while active), opened from: Now
-Playing's app bar (`SleepTimerButton`, tooltip "Sleep timer" / "Sleep timer: 23 min"), the Best
-Music drawer ("Sleep timer" with time left), Settings ("Sleep timer" row), and the mini player
-(a bedtime + time-left badge while running, and long-press on the bar). The timer is in-memory —
+Playing's app bar (`SleepTimerButton`, tooltip "Sleep timer" / "Sleep timer: 23 min"), Settings
+("Sleep timer" row), and the mini player (a bedtime + time-left badge while running, and
+long-press on the bar). The Best Music drawer no longer has a "Sleep timer" entry (0.3.33). The timer is in-memory —
 not restored after the app process is killed.
 
 **Always-visible mini player + resume after restart** (0.2.88): `MusicMiniPlayerBar`
@@ -1487,14 +1533,23 @@ fraction: `YoutubeFeedService.refreshProgress` = channels fetched / total), a fe
 description, channel search/import, the library search's YouTube lookup and the MP3
 Downloader's search.
 
-**Time left (Best Music 0.3.37).** Anything that can take more than 30 seconds shows a
+**Time left (Best Music 0.3.38).** Anything that can take more than 30 seconds shows a
 rough "hh:mm:ss remaining" line below its progress: `RemainingTimeText`
 (`lib/ui/remaining_time_text.dart`) on top of the shared package's `RemainingTime`
 (`mfficiency_updates`): nothing unless the whole job looks longer than 30 s (time so far +
 time left), nothing in the first 3 s, extrapolated from a 0..1 `done` (or counting down a
 `typical` duration), refreshed every second, hidden instead of 00:00:00; `startedAt` for
 work that began before the widget (a download, a feed refresh). `EstimatedProgressBar`
-shows it below the bar with `showRemaining`. Covered: MP3 downloads (MP3 Downloader card
+shows it below the bar with `showRemaining`; `TaskRemainingText` shows it for a service's
+`ValueNotifier<TaskProgress?>` (`lib/services/task_progress.dart`: {startedAt, done};
+`TaskProgressTracker` publishes at most once per 0.1% and clears it). Covered: **Upload
+phone music** (`ServerUploadService.transfer` = bytes read into the PUT requests ÷ bytes of
+the whole batch; the upload page's bar shows that fraction too, and the Server tab header
+under "Uploading …"), the server **library sync** (`SubsonicLibrarySync.progress` = songs
+fetched page by page (`allSongs(onPage:)`) ÷ the songs the server had last time; nothing
+on a first sync; Server tab header and Settings › Music server › Sync now), **keeping server
+songs on the phone** (`ServerOfflineStore.transfer` = bytes ÷ the batch's reported sizes,
+average for songs without one; under "Keeping music on this phone"), MP3 downloads (MP3 Downloader card
 and Downloads page; `Mp3DownloadJob.startedAt`, from received/total bytes), the library
 scan on Metadata Scan (tracks found / tracks the library had before; nothing on a first
 scan), the song-info lookup and BPM detection passes (Metadata Scan, Songs by BPM,
@@ -1542,8 +1597,8 @@ column (between `year` and `tags`; blank cell = keep, like the other columns). A
 `metadataEdited` track keeps the hand-set BPM but fills a missing one from the tag
 (`previous.bpm ?? track.bpm`).
 
-**Page** — `lib/ui/bpm_range_page.dart` (`BpmRangePage`), from Best Music's drawer ("Songs by
-BPM") and the Playlists tab's third row (also in BestToDo's Music Player). With no song
+**Page** — `lib/ui/bpm_range_page.dart` (`BpmRangePage`), from Best Music's drawer (Tools →
+"Songs by BPM") and the Playlists tab's third row (also in BestToDo's Music Player). With no song
 having a BPM it explains the three ways to add one. Otherwise: a row of preset `InputChip`s
 ("<name> · min–max"; tap applies the range — with a snackbar if it reaches past the
 library's range — delete icon removes it with Undo), a big "min – max BPM" label, a
@@ -1620,7 +1675,7 @@ edits and CSV imports always win and a rescan simply gets the cache re-applied. 
 enricher's `status` line ("Looking up song info online… 3/40", "Detecting BPM on device…",
 "Song info filled in automatically — N of M complete, K with a BPM", "…paused (offline?)")
 shows under the Metadata Scan page's counts and on Songs by BPM while songs lack a BPM.
-Both passes publish `progress` (`EnrichmentProgress` {startedAt, done 0..1 of the songs
+Both passes publish `progress` (`TaskProgress` {startedAt, done 0..1 of the songs
 that needed work}; null between passes), shown as an "hh:mm:ss remaining" line below the
 status (`EnrichmentRemainingText`, see *Time left* below); the notification text gets the
 same " · 00:12:34 remaining". On Metadata Scan the row is always shown (idle text
@@ -1900,3 +1955,15 @@ Tests: `test/tools/music_share_link_test.dart` (`detectBestMusicShare`, other-li
 resolving), `test/tools/mp3_downloader_test.dart` ("autoDownloadTopMatch (Best Music)"),
 `test/music/music_download_library_sync_test.dart`, `test/update/music_build_wiring_test.dart`
 (manifest overlay).
+
+### 10.6r Settings survive updates (Best Music 0.3.36)
+
+`Config.save` writes `settings.json` through `SafeFile.writeString` (atomic `.tmp` + rename,
+previous content kept as `settings.json.bak`) and `Config.load` reads it through
+`SafeFile.readWithRecovery`, so a save cut off by the app being killed — an update installing,
+while `MediaVolume` saves on every volume change — falls back to the last good settings
+instead of silently resetting everything (the music server login included). The music server
+address, user name and password are also kept in `music_server.json` (same SafeFile handling),
+rewritten only when they change; `load` takes the login from there whenever `settings.json`
+has no server address. A failed "Connect" in the Server tab now puts the previous login back
+instead of clearing just the user name. Tests: `test/music/config_persistence_test.dart`.

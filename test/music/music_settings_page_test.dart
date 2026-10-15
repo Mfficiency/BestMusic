@@ -111,4 +111,39 @@ void main() {
     expect(find.text('Automatic backup'), findsOneWidget);
     expect(find.text('Backup folder'), findsOneWidget);
   });
+
+  testWidgets('the Music server section: login fields, then test and sync',
+      (tester) async {
+    addTearDown(() {
+      Config.subsonicServerUrl = '';
+      Config.subsonicUsername = '';
+    });
+    await tester.pumpWidget(const MaterialApp(
+        home: MusicSettingsPage(initialSection: MusicSettingsSection.server)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Server address'), findsOneWidget);
+    expect(find.text('User name'), findsOneWidget);
+    expect(find.text('Password'), findsOneWidget);
+    expect(find.text('Automatic sync'), findsOneWidget);
+    expect(find.textContaining(Config.defaultSubsonicSyncWindow),
+        findsOneWidget);
+    // Visible from the start, but asks for the login first.
+    expect(find.text('Sync now'), findsOneWidget);
+    expect(find.text('Fill in the server address and user name first'),
+        findsOneWidget);
+
+    Config.subsonicServerUrl = 'http://hally.local:4533';
+    Config.subsonicUsername = 'me';
+    await tester.pumpWidget(const MaterialApp(
+        home: MusicSettingsPage(
+            key: ValueKey('configured'),
+            initialSection: MusicSettingsSection.server)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('http://hally.local:4533'), findsOneWidget);
+    expect(find.text('Test connection'), findsOneWidget);
+    expect(find.text('Sync now'), findsOneWidget);
+    expect(find.text('Remove this server'), findsOneWidget);
+  });
 }

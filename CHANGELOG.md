@@ -5,11 +5,23 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
-## [0.3.37] - 2026-10-15
-- Long tasks show roughly how much time is left (hh:mm:ss remaining) below their progress once they look like they take more than 30 seconds: MP3 downloads, the library scan, looking up song info and detecting BPM, refreshing the Subscriptions feed and importing channels; app updates too
+## [0.3.38] - 2026-10-15
+- Long tasks show roughly how much time is left (hh:mm:ss remaining) below their progress once they look like they take more than 30 seconds: uploading phone music to the music server, syncing with the server, keeping server songs on the phone, MP3 downloads, the library scan, looking up song info and detecting BPM, refreshing the Subscriptions feed and importing channels; app updates too
 
-## [0.3.36] - 2026-10-14
+## [0.3.37] - 2026-10-15
 - Changelog: the version card shows the version and channel on top, then Downloaded, Installed and Last check with their dates lined up in one column; no icon and no pull-down hint
+
+## [0.3.36] - 2026-10-15
+- Music server: the address, user name and password are now kept safely across updates — an update no longer makes you log in to the server again. All other settings are better protected the same way.
+
+## [0.3.35] - 2026-10-14
+- New Server tab: your music server's songs in folders, like OneDrive. Connect right in the tab (no more hunting for Sync now; it's also always shown in Settings now). Every folder or song can be kept on this phone to play offline, or left online only with 'Free up space', which can also delete the phone's own copies once they're safely on the server. 'Upload phone music' sends the songs on your phone that the MagicMirror Pi doesn't have yet; the Pi adds them at night and cleans up duplicates then. Songs that are both on the phone and the server now show only once in your library. Fixed: plain http servers like the Pi couldn't be reached on Android.
+
+## [0.3.34] - 2026-10-14
+- Music server: stream your own music from a Navidrome server such as the one on the MagicMirror Pi. Settings → Music server takes the address, user name and password, tests the connection and brings the server's songs into your library next to your folder's songs. The song list syncs by itself at night (01:00–06:00, changeable) so the Pi does its heavy work while nobody looks at the mirror, or right away with 'Sync now'. Songs play straight from the server as the original file, never re-encoded.
+
+## [0.3.33] - 2026-10-13
+- Menu: Songs by BPM, the MP3 Downloader and the Wishlist now live together under a new 'Tools' section (tap it to open). The sleep timer is gone from the menu — it is still on the Now Playing screen, the mini player and in Settings.
 
 ## [0.3.32] - 2026-10-12
 - Subscriptions → Channels: new 'Add channels by name' button — paste a list of channel names, one per line, and Best Music subscribes to all of them at once (it tells you which names it couldn't find).

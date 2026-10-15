@@ -14,6 +14,7 @@ import 'id3_tag_writer.dart';
 import 'log_service.dart';
 import 'music_library_service.dart';
 import 'music_online_metadata.dart';
+import 'task_progress.dart';
 
 /// What the enricher has already done for one track, persisted so a song
 /// is looked up / analyzed once, not on every launch.
@@ -160,8 +161,8 @@ class MusicMetadataEnricher {
 
   /// How far the running online lookup / BPM detection pass is (null when
   /// none runs): the "hh:mm:ss remaining" line below [status].
-  final ValueNotifier<EnrichmentProgress?> progress =
-      ValueNotifier<EnrichmentProgress?>(null);
+  final ValueNotifier<TaskProgress?> progress =
+      ValueNotifier<TaskProgress?>(null);
   _Eta? _eta;
   final Map<String, EnrichmentEntry> _entries = {};
   bool _loaded = false;
@@ -636,16 +637,7 @@ class MusicMetadataEnricher {
   }
 }
 
-/// How far an online-lookup or BPM pass is: [done] (0..1) of the songs
-/// it set out to do, since [startedAt].
-class EnrichmentProgress {
-  const EnrichmentProgress({required this.startedAt, required this.done});
-
-  final DateTime startedAt;
-  final double done;
-}
-
-/// Counts a pass's songs and publishes [EnrichmentProgress]; songs that
+/// Counts a pass's songs and publishes [TaskProgress]; songs that
 /// turn out to need nothing are left out of the total.
 class _Eta {
   _Eta(this._total, this._out) {
@@ -653,7 +645,7 @@ class _Eta {
   }
 
   final int _total;
-  final ValueNotifier<EnrichmentProgress?> _out;
+  final ValueNotifier<TaskProgress?> _out;
   final DateTime _startedAt = DateTime.now();
   final RemainingTime _time = RemainingTime()..start();
   int _done = 0;
@@ -678,5 +670,5 @@ class _Eta {
   String? get label => _done == 0 ? null : _time.label(fraction);
 
   void _publish() =>
-      _out.value = EnrichmentProgress(startedAt: _startedAt, done: fraction);
+      _out.value = TaskProgress(startedAt: _startedAt, done: fraction);
 }

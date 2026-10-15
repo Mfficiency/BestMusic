@@ -1,10 +1,12 @@
 import 'dart:async' show Timer;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:mfficiency_updates/mfficiency_updates.dart'
     show RemainingTime, formatHms;
 
 import '../services/music_metadata_enricher.dart';
+import '../services/task_progress.dart';
 
 /// A small "00:01:23 remaining" line to put below a progress bar or a
 /// progress text. Rough on purpose: it only gives an indication.
@@ -139,13 +141,40 @@ class EnrichmentRemainingText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<EnrichmentProgress?>(
+    return ValueListenableBuilder<TaskProgress?>(
       valueListenable: (enricher ?? MusicMetadataEnricher.instance).progress,
       builder: (context, p, _) => RemainingTimeText(
         active: p != null,
         done: p?.done,
         startedAt: p?.startedAt,
         textAlign: textAlign,
+      ),
+    );
+  }
+}
+
+/// The [RemainingTimeText] for a service's [TaskProgress] notifier (server
+/// upload, server sync, keeping songs on the phone).
+class TaskRemainingText extends StatelessWidget {
+  const TaskRemainingText(this.progress,
+      {super.key, this.textAlign, this.clock});
+
+  final ValueListenable<TaskProgress?> progress;
+  final TextAlign? textAlign;
+
+  /// For tests.
+  final DateTime Function()? clock;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<TaskProgress?>(
+      valueListenable: progress,
+      builder: (context, p, _) => RemainingTimeText(
+        active: p != null,
+        done: p?.done,
+        startedAt: p?.startedAt,
+        textAlign: textAlign,
+        clock: clock,
       ),
     );
   }

@@ -12,6 +12,7 @@ import 'log_service.dart';
 import 'music_metadata_csv.dart';
 import 'music_metadata_extractor.dart';
 import 'music_online_metadata.dart';
+import 'server_catalog.dart';
 
 /// Scans [Config.musicFolder] and every subfolder for playable audio files,
 /// skipping anything under [Config.musicExcludedSubfolders]. Reads ID3 tags
@@ -20,6 +21,10 @@ import 'music_online_metadata.dart';
 /// to `music_library.json` so the library shows up instantly on next launch
 /// without waiting for a fresh scan; call [rescan] to refresh it (e.g. after
 /// the user changes the music folder or adds files).
+///
+/// Songs on a music server ([TrackSource.subsonic]) live in the same list,
+/// put there by [replaceServerTracks] (`SubsonicLibrarySync`); a folder
+/// rescan keeps them, and a server sync keeps the folder's songs.
 class MusicLibraryService {
   MusicLibraryService._();
 
@@ -177,7 +182,7 @@ class MusicLibraryService {
     final root = Config.musicFolder.trim();
     if (root.isEmpty) {
       LogService.add('Music', 'rescan: no music folder configured');
-      tracks.value = [];
+      tracks.value = _serverTracks();
       await _save();
       return tracks.value;
     }
@@ -248,13 +253,15 @@ class MusicLibraryService {
         found.add(track);
         onTrackScanned?.call(found.length, track);
       }
-      found.sort((a, b) =>
-          a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+      final scannedCount = found.length;
+      found
+        ..addAll(_serverTracks())
+        ..sort(_byTitle);
       tracks.value = found;
       await _save();
       LogService.add(
           'Music',
-          'rescan: "$root" — $filesSeen file(s) seen, ${found.length} '
+          'rescan: "$root" — $filesSeen file(s) seen, $scannedCount '
           'track(s) kept, $skippedUnsupportedExt unsupported extension, '
           '$skippedExcludedDir in excluded subfolders');
     } catch (e, st) {
@@ -266,6 +273,56 @@ class MusicLibraryService {
       scanning = false;
     }
     return tracks.value;
+  }
+
+  static int _byTitle(Track a, Track b) =>
+      a.title.toLowerCase().compareTo(b.title.toLowerCase());
+
+  List<Track> _serverTracks() =>
+      tracks.value.where((t) => t.source == TrackSource.subsonic).toList();
+
+  /// Replaces the music server's songs with [fresh] (the server's complete
+  /// song list), keeping the folder's songs. A server song that is also on
+  /// the phone ([sameSong]: uploaded from here, or copied both places) is
+  /// left out, so the library shows each song once. A song that was already there
+  /// keeps its date added, play count and tags, and — when it was edited by
+  /// hand — its edited fields, the same way [rescan] treats files. Songs no
+  /// longer on the server leave the library. Returns how many server songs the library holds now.
+  Future<int> replaceServerTracks(List<Track> fresh) async {
+    final onPhone = SameSongIndex(
+        tracks.value.where((t) => t.source == TrackSource.local));
+    fresh = [for (final t in fresh) if (onPhone.match(t) == null) t];
+    final previousById = {for (final t in _serverTracks()) t.id: t};
+    final now = DateTime.now();
+    final merged = [
+      for (final track in fresh)
+        if (previousById[track.id] case final previous?)
+          previous.metadataEdited
+              ? previous.copyWith(
+                  durationMs: track.durationMs ?? previous.durationMs,
+                  bpm: previous.bpm ?? track.bpm)
+              : track.copyWith(
+                  dateAdded: previous.dateAdded ?? now,
+                  playCount: previous.playCount,
+                  tags: previous.tags)
+        else
+          track.copyWith(dateAdded: now),
+    ];
+    final list = [
+      ...tracks.value.where((t) => t.source != TrackSource.subsonic),
+      ...merged,
+    ]..sort(_byTitle);
+    tracks.value = list;
+    await _save();
+    return merged.length;
+  }
+
+  /// Takes every music server song out of the library (server removed).
+  Future<void> removeServerTracks() async {
+    if (_serverTracks().isEmpty) return;
+    tracks.value =
+        tracks.value.where((t) => t.source != TrackSource.subsonic).toList();
+    await _save();
   }
 
   static DateTime? _earlier(DateTime? a, DateTime? b) {
@@ -337,6 +394,8 @@ class MusicLibraryService {
       source: existing.source,
       filePath: existing.filePath,
       remoteId: existing.remoteId,
+      remotePath: existing.remotePath,
+      sizeBytes: existing.sizeBytes,
       title: title,
       artist: artist,
       album: album,
@@ -376,6 +435,8 @@ class MusicLibraryService {
         source: existing.source,
         filePath: existing.filePath,
         remoteId: existing.remoteId,
+        remotePath: existing.remotePath,
+        sizeBytes: existing.sizeBytes,
         title: row.title.isNotEmpty ? row.title : existing.title,
         artist: row.artist.isNotEmpty ? row.artist : existing.artist,
         album: row.album.isNotEmpty ? row.album : existing.album,

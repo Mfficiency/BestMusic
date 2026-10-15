@@ -22,9 +22,13 @@
     <!-- Keeps the background song-info search / BPM detection running while
          other apps are open (BackgroundWorkService). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- usesCleartextTraffic: the music server is plain http on the home network
+         (http://hally.local:4533, the MagicMirror Pi's Navidrome, or its IP), which
+         Android blocks by default; a LAN IP can't be listed in a domain allow-list. -->
     <application
         android:label="@string/app_name"
         android:name="${applicationName}"
+        android:usesCleartextTraffic="true"
         android:icon="@mipmap/ic_launcher">
         <!-- singleTask (not singleTop) and the default task affinity: there
              is only ever ONE MainActivity / Flutter engine. A launch from the

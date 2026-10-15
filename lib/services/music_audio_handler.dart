@@ -14,6 +14,7 @@ import 'music_resume_service.dart';
 import 'music_sleep_timer.dart';
 import 'sponsorblock_service.dart';
 import 'video_audio_cache.dart';
+import 'server_offline_store.dart';
 import 'subsonic_client.dart';
 import 'youtube_audio_source.dart';
 import 'youtube_feed_service.dart';
@@ -257,6 +258,9 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
       case TrackSource.local:
         return ja.AudioSource.uri(Uri.file(track.filePath!));
       case TrackSource.subsonic:
+        // Kept on this device (Server tab): play the downloaded copy.
+        final kept = ServerOfflineStore.instance.localFileFor(track.remoteId!);
+        if (kept != null) return ja.AudioSource.uri(Uri.file(kept));
         return ja.AudioSource.uri(
             SubsonicClient.instance.streamUri(track.remoteId!));
       case TrackSource.youtube:

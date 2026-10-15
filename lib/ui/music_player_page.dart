@@ -10,10 +10,10 @@ import '../models/track.dart';
 import '../services/m3u_playlist_service.dart';
 import '../services/mp3_downloader_service.dart';
 import '../services/music_library_service.dart';
+import '../services/server_catalog.dart';
 import '../services/music_player_service.dart';
 import '../services/speaker_play_guard.dart';
 import '../services/music_playlist_service.dart';
-import '../services/music_sleep_timer.dart';
 import '../services/music_youtube_fallback.dart';
 import '../utils/artist_utils.dart';
 import 'app_logs_page.dart';
@@ -28,11 +28,11 @@ import 'music_about_page.dart';
 import 'music_metadata_scan_page.dart';
 import 'music_mini_player_bar.dart';
 import 'music_settings_page.dart';
-import 'sleep_timer_sheet.dart';
 import 'music_wishlist_page.dart';
 import 'now_playing_page.dart';
 import 'rule_playlist_editor_page.dart';
 import 'startup_times_page.dart';
+import 'server_tab.dart';
 import 'subpage_app_bar.dart';
 import 'track_metadata_page.dart';
 import 'youtube_feed_page.dart';
@@ -45,8 +45,9 @@ import 'youtube_feed_page.dart';
 /// Also the Best Music app's home page ([standalone]: true), where it is the
 /// root route rather than a BestToDo Tools subpage: [homeScaffoldKey] +
 /// [_buildDrawer] give it the same drawer-based menu as BestToDo's own home
-/// page (Settings, MP3 Downloader, Changelog, Startup Times, App Logs,
-/// About), in place of BestToDo's task-list-specific entries.
+/// page (Settings, Subscriptions, Tools → Songs by BPM / MP3 Downloader /
+/// Wishlist, Changelog, Startup Times, App Logs, About), in place of
+/// BestToDo's task-list-specific entries.
 class MusicPlayerPage extends StatefulWidget {
   const MusicPlayerPage({super.key, this.standalone = false});
 
@@ -64,7 +65,7 @@ class _MusicPlayerPageState extends State<MusicPlayerPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 6, vsync: this);
+    _tabController = TabController(length: 7, vsync: this);
     // The MP3 Downloader's folder is the common case for where music already
     // lives, so default straight to it instead of asking the user to pick
     // the same folder twice.
@@ -194,12 +195,6 @@ class _MusicPlayerPageState extends State<MusicPlayerPage>
                 _pushStandalonePage(() => const MusicSettingsPage()),
           ),
           ListTile(
-            leading: const Icon(Icons.download_outlined),
-            title: const Text('MP3 Downloader'),
-            onTap: () =>
-                _pushStandalonePage(() => const Mp3DownloaderPage()),
-          ),
-          ListTile(
             leading: const Icon(Icons.subscriptions_outlined),
             title: const Text('Subscriptions'),
             onTap: () {
@@ -207,30 +202,30 @@ class _MusicPlayerPageState extends State<MusicPlayerPage>
               Navigator.of(context).push(YoutubeFeedPage.route());
             },
           ),
-          ListTile(
-            leading: const Icon(Icons.speed),
-            title: const Text('Songs by BPM'),
-            onTap: () => _pushStandalonePage(() => const BpmRangePage()),
-          ),
-          ListTile(
-            leading: const Icon(Icons.star_border),
-            title: const Text('Wishlist'),
-            onTap: () => _pushStandalonePage(() => const MusicWishlistPage()),
-          ),
-          ValueListenableBuilder<SleepTimerState>(
-            valueListenable: MusicSleepTimer.instance.state,
-            builder: (context, state, _) => ListTile(
-              leading: Icon(
-                  state.isActive ? Icons.bedtime : Icons.bedtime_outlined),
-              title: const Text('Sleep timer'),
-              subtitle: state.isActive
-                  ? Text(MusicSleepTimer.describe(state))
-                  : null,
-              onTap: () {
-                Navigator.of(context).pop(); // close the drawer
-                showSleepTimerSheet(this.context);
-              },
-            ),
+          // Tools: the less-used helper pages, collapsed by default.
+          ExpansionTile(
+            leading: const Icon(Icons.build_outlined),
+            title: const Text('Tools'),
+            childrenPadding: const EdgeInsets.only(left: 16),
+            children: [
+              ListTile(
+                leading: const Icon(Icons.speed),
+                title: const Text('Songs by BPM'),
+                onTap: () => _pushStandalonePage(() => const BpmRangePage()),
+              ),
+              ListTile(
+                leading: const Icon(Icons.download_outlined),
+                title: const Text('MP3 Downloader'),
+                onTap: () =>
+                    _pushStandalonePage(() => const Mp3DownloaderPage()),
+              ),
+              ListTile(
+                leading: const Icon(Icons.star_border),
+                title: const Text('Wishlist'),
+                onTap: () =>
+                    _pushStandalonePage(() => const MusicWishlistPage()),
+              ),
+            ],
           ),
           ListTile(
             leading: const Icon(Icons.history),
@@ -348,6 +343,7 @@ class _MusicPlayerPageState extends State<MusicPlayerPage>
             Tab(text: 'Artists'),
             Tab(text: 'Tags'),
             Tab(text: 'Folders'),
+            Tab(text: 'Server'),
           ],
         ),
       ),
@@ -363,6 +359,7 @@ class _MusicPlayerPageState extends State<MusicPlayerPage>
                 _ArtistsTab(),
                 _TagsTab(),
                 _FoldersTab(),
+                ServerTab(),
               ],
             ),
           ),
@@ -759,10 +756,14 @@ class _TagsTab extends StatelessWidget {
 
 /// The folder (relative to [Config.musicFolder]) a local [track] lives in,
 /// for grouping in the Folders tab. Tracks right under the music folder
-/// itself group under "(Music folder)"; a Subsonic track (no [Track.filePath])
-/// groups under "Other".
+/// itself group under "(Music folder)"; a music server song groups under
+/// "Server/<its folder there>", anything else under "Other".
 String folderLabelOf(Track track) {
   final path = track.filePath;
+  if (track.source == TrackSource.subsonic) {
+    final folder = ServerCatalog.folderOf(track);
+    return folder.isEmpty ? 'Server' : 'Server/$folder';
+  }
   if (path == null) return 'Other';
   final root = MusicLibraryService.normalizePath(Config.musicFolder.trim());
   final normalized = MusicLibraryService.normalizePath(path);

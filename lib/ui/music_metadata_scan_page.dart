@@ -257,9 +257,9 @@ class _MusicMetadataScanPageState extends State<MusicMetadataScanPage> {
                                   : Colors.red,
                         ),
                         title: Text(
-                            track.title.isNotEmpty ? track.title : track.fileBaseName),
+                            track.displayTitle),
                         subtitle: Text([
-                          if (track.artist.isNotEmpty) track.artist,
+                          if (track.displayArtist.isNotEmpty) track.displayArtist,
                           hasGenre ? track.genre : 'no genre',
                           hasYear ? '${track.year}' : 'no year',
                         ].join(' • ')),

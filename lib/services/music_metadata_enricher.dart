@@ -365,8 +365,8 @@ class MusicMetadataEnricher {
       try {
         result = await _lookup.lookup(
           TrackQuery(
-            title: track.title.isNotEmpty ? track.title : track.fileBaseName,
-            artist: track.artist,
+            title: track.displayTitle,
+            artist: track.displayArtist,
             durationMs: track.durationMs,
           ),
           missingFields(track),

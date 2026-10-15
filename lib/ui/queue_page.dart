@@ -39,13 +39,15 @@ class _QueuePageState extends State<QueuePage> {
                         isCurrent ? Theme.of(context).colorScheme.primary : null,
                   ),
                   title: Text(
-                    track.title.isNotEmpty ? track.title : track.fileBaseName,
+                    track.displayTitle,
                     style: isCurrent
                         ? const TextStyle(fontWeight: FontWeight.bold)
                         : null,
                   ),
                   subtitle:
-                      track.artist.isNotEmpty ? Text(track.artist) : null,
+                      track.displayArtist.isNotEmpty
+                          ? Text(track.displayArtist)
+                          : null,
                 );
               },
             ),

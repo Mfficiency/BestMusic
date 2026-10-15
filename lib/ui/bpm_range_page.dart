@@ -256,11 +256,11 @@ class _BpmRangePageState extends State<BpmRangePage> {
                           final t = list[i];
                           return ListTile(
                             leading: const Icon(Icons.music_note),
-                            title: Text(t.title,
+                            title: Text(t.displayTitle,
                                 maxLines: 1, overflow: TextOverflow.ellipsis),
-                            subtitle: t.artist.isEmpty
+                            subtitle: t.displayArtist.isEmpty
                                 ? null
-                                : Text(t.artist,
+                                : Text(t.displayArtist,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis),
                             trailing: Text('${t.bpm} BPM'),

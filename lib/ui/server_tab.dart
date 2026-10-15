@@ -144,8 +144,10 @@ class ServerFolderView extends StatelessWidget {
     final offline = ServerOfflineStore.instance;
     return ListTile(
       leading: const Icon(Icons.music_note_outlined),
-      title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis),
+      title: Text(song.displayTitle,
+          maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text(song.displayArtist,
+          maxLines: 1, overflow: TextOverflow.ellipsis),
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
         _stateIcon(offline.stateOfSong(song)),
         _OfflineMenu(

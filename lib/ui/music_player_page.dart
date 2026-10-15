@@ -737,7 +737,7 @@ class _ArtistsTab extends StatelessWidget {
         final byArtist = <String, List<Track>>{};
         final featuringByArtist = <String, Set<String>>{};
         for (final track in tracks) {
-          final credit = splitArtistCredit(track.artist);
+          final credit = splitArtistCredit(track.displayArtist);
           final artist = credit.mainArtist.isEmpty ? _unknownArtist : credit.mainArtist;
           byArtist.putIfAbsent(artist, () => []).add(track);
           if (credit.featuring.isNotEmpty) {
@@ -1161,8 +1161,10 @@ class _AddSongsToPlaylistPageState extends State<AddSongsToPlaylistPage> {
                     final track = candidates[index];
                     return CheckboxListTile(
                       value: _selected.contains(track.id),
-                      title: Text(track.title.isNotEmpty ? track.title : track.fileBaseName),
-                      subtitle: track.artist.isNotEmpty ? Text(track.artist) : null,
+                      title: Text(track.displayTitle),
+                      subtitle: track.displayArtist.isNotEmpty
+                          ? Text(track.displayArtist)
+                          : null,
                       onChanged: (checked) => setState(() {
                         if (checked == true) {
                           _selected.add(track.id);
@@ -1220,8 +1222,7 @@ String trackSortDirectionLabel(TrackSortField field, bool ascending) {
 bool trackSortDefaultAscending(TrackSortField field) =>
     field == TrackSortField.title || field == TrackSortField.artist;
 
-String _trackDisplayTitle(Track t) =>
-    t.title.isNotEmpty ? t.title : t.fileBaseName;
+String _trackDisplayTitle(Track t) => t.displayTitle;
 
 DateTime? _trackSortDate(Track t, TrackSortField field) =>
     field == TrackSortField.deviceDate ? t.deviceDate : t.dateAdded;
@@ -1469,8 +1470,8 @@ class _TrackListViewState extends State<TrackListView> {
                         maxLines: 1, overflow: TextOverflow.ellipsis),
                     // Always two lines (matching the prototype row height).
                     subtitle: Text(
-                        track.artist.isNotEmpty
-                            ? track.artist
+                        track.displayArtist.isNotEmpty
+                            ? track.displayArtist
                             : 'Unknown artist',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),

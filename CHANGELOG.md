@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.44] - 2026-10-15
+- Songs named like "Artist - Song.m4a" now show just the song name, with the artist on the line below, everywhere in the app (lists, Now Playing, the notification, the widget, the Server tab). Untagged files get that artist too, so they land under the right artist in the Artists tab and in search.
+
 ## [0.3.43] - 2026-10-15
 - Changelog: each version now shows when it was built, how long the build took and the size of its APK (from the version's GitHub release; versions without that info keep their own build notes). Updates package 1.5.0.
 

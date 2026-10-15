@@ -118,4 +118,46 @@ void main() {
       expect(a.hashCode, equals(b.hashCode));
     });
   });
+
+  group('displayTitle / displayArtist', () {
+    Track local(String file, {String title = '', String artist = ''}) =>
+        Track.local(filePath: '/Music/$file', title: title, artist: artist);
+
+    test('an "Artist - Song" file name shows the song, the artist below', () {
+      final t = local('Kygo - Firestone.m4a', title: 'Kygo - Firestone');
+      expect(t.displayTitle, 'Firestone');
+      expect(t.displayArtist, 'Kygo');
+      final noTitle = local('Angèle – Balance ton quoi.m4a');
+      expect(noTitle.displayTitle, 'Balance ton quoi');
+      expect(noTitle.displayArtist, 'Angèle');
+    });
+
+    test('the artist repeated in the title is dropped from the title', () {
+      final t = local('x.mp3', title: 'Stromae - Santé', artist: 'Stromae');
+      expect(t.displayTitle, 'Santé');
+      expect(t.displayArtist, 'Stromae');
+    });
+
+    test('a title with a dash after a different artist is left alone', () {
+      final t = local('x.mp3',
+          title: 'Hey Jude - Remastered 2015', artist: 'The Beatles');
+      expect(t.displayTitle, 'Hey Jude - Remastered 2015');
+      expect(t.displayArtist, 'The Beatles');
+      final plain = local('x.mp3', title: 'Firestone', artist: 'Kygo');
+      expect((plain.displayTitle, plain.displayArtist), ('Firestone', 'Kygo'));
+    });
+
+    test('a video keeps its own title', () {
+      final video = Track.youtube(videoId: 'v', title: 'Vlog - Day 1');
+      expect(video.displayTitle, 'Vlog - Day 1');
+      final song = Track.youtube(videoId: 's', title: 'Kygo - Stay', song: true);
+      expect(song.displayTitle, 'Stay');
+      expect(song.displayArtist, 'Kygo');
+    });
+
+    test('server songs too', () {
+      final t = Track.subsonic(remoteId: '1', title: 'Dua Lipa - Levitating');
+      expect((t.displayTitle, t.displayArtist), ('Levitating', 'Dua Lipa'));
+    });
+  });
 }

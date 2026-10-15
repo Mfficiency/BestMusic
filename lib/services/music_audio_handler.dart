@@ -247,8 +247,8 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
   MediaItem _toMediaItem(Track t) => MediaItem(
         id: t.id,
         artUri: t.artUrl != null ? Uri.tryParse(t.artUrl!) : null,
-        title: t.title.isNotEmpty ? t.title : t.fileBaseName,
-        artist: t.artist.isNotEmpty ? t.artist : null,
+        title: t.displayTitle,
+        artist: t.displayArtist.isNotEmpty ? t.displayArtist : null,
         album: t.album.isNotEmpty ? t.album : null,
         duration: t.durationMs != null ? Duration(milliseconds: t.durationMs!) : null,
       );

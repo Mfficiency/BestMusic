@@ -219,7 +219,7 @@ class SwitchSessionButton extends StatelessWidget {
 
   static String labelFor(PlaybackSession session) =>
       '${session.isVideo ? 'Back to video' : 'Back to music'}: '
-      '${session.current.title}';
+      '${session.current.displayTitle}';
 
   @override
   Widget build(BuildContext context) {
@@ -331,7 +331,7 @@ class SessionSwitchPill extends StatelessWidget {
               // stays readable.
               return Semantics(
                 button: true,
-                label: '$label: ${target.current.title}',
+                label: '$label: ${target.current.displayTitle}',
                 child: Material(
                   key: const ValueKey('sessionSwitchPill'),
                   color: scheme.secondaryContainer.withValues(alpha: 0.6),

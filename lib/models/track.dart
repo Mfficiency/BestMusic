@@ -219,6 +219,44 @@ class Track {
     return dot > 0 ? name.substring(0, dot) : name;
   }
 
+  /// The song's name as lists show it: the title (or, without one, the file
+  /// name), minus a leading "Artist - " — files are often named
+  /// "Artist - Song.m4a", and the artist goes on the line below
+  /// ([displayArtist]).
+  String get displayTitle => _displayParts.$2;
+
+  /// The artist shown under [displayTitle]: the tag, or the "Artist" part of
+  /// an "Artist - Song" name when the tag is empty. '' when unknown.
+  String get displayArtist => _displayParts.$1;
+
+  (String, String) get _displayParts {
+    final name = title.trim().isNotEmpty ? title.trim() : fileBaseName;
+    // A video's title is the video's, not a file name.
+    if (source == TrackSource.youtube && !youtubeSong) return (artist, name);
+    final split = splitArtistAndSong(name);
+    if (split == null) return (artist, name);
+    final (left, right) = split;
+    if (artist.trim().isEmpty) return (left, right);
+    return _sameName(left, artist) ? (artist, right) : (artist, name);
+  }
+
+  static final RegExp _artistSongPattern = RegExp(r'^(.+?)\s+[-–—]\s+(.+)$');
+
+  /// "Artist - Song" (also with – or —) split into (artist, song); null when
+  /// [name] has no such separator.
+  static (String, String)? splitArtistAndSong(String name) {
+    final m = _artistSongPattern.firstMatch(name.trim());
+    if (m == null) return null;
+    final left = m.group(1)!.trim(), right = m.group(2)!.trim();
+    if (left.isEmpty || right.isEmpty) return null;
+    return (left, right);
+  }
+
+  static bool _sameName(String a, String b) {
+    String n(String s) => s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
+    return n(a).isNotEmpty && n(a) == n(b);
+  }
+
   /// Returns a copy with the given fields replaced. Used to update
   /// per-scan metadata while preserving [dateAdded]/[playCount] across a
   /// rescan, and to bump [playCount] on playback.

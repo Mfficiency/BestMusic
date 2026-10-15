@@ -2007,6 +2007,18 @@ rewritten only when they change; `load` takes the login from there whenever `set
 has no server address. A failed "Connect" in the Server tab now puts the previous login back
 instead of clearing just the user name. Tests: `test/music/config_persistence_test.dart`.
 
+### 10.6r2 Song name and artist from "Artist - Song" names (0.3.44)
+
+`Track.displayTitle` / `Track.displayArtist` are what every song row, Now Playing / the
+notification (`MusicAudioHandler._toMediaItem`), the queue, the Server tab, the BPM page, the
+metadata scan and the online look-up use. The title is taken, or the file name when there is no
+title; then an "Artist - Song" form (`-`, `–` or `—`, `Track.splitArtistAndSong`) shows "Song",
+with "Artist" below when the artist tag is empty or is that same artist. A different artist
+leaves a dashed title alone ("Hey Jude - Remastered 2015"), and Subscriptions videos keep their
+own titles. At scan time (`MusicLibraryService._buildTrack`), a file with no title and no artist
+tag (every non-MP3, since only MP3 tags are read on the phone) is stored with the split title
+and artist, so the Artists tab, search and rule playlists see them too.
+
 ### 10.6s Best Music Organizer on the computer (organizer/, 2026-10-15)
 
 A separate tool, not part of the app: `organizer/` is a Python web app run on the computer

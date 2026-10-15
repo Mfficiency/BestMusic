@@ -362,15 +362,33 @@ class MusicLibraryService {
 
   Future<Track> _buildTrack(String filePath, String ext) async {
     final fallbackTitle = baseNameOf(filePath);
-    if (ext != 'mp3') {
-      return Track.local(filePath: filePath, title: fallbackTitle);
+    // Without tags, an "Artist - Song.m4a" file name gives both.
+    Track fromName() {
+      final split = Track.splitArtistAndSong(fallbackTitle);
+      return split == null
+          ? Track.local(filePath: filePath, title: fallbackTitle)
+          : Track.local(filePath: filePath, title: split.$2, artist: split.$1);
     }
+
+    if (ext != 'mp3') return fromName();
     try {
       final raf = await File(filePath).open();
       final length = await raf.length();
       final headBytes = await raf.read(min(length, id3ReadCap));
       await raf.close();
       final tags = decodeMp3Tags(headBytes);
+      if ((tags.title ?? '').trim().isEmpty && (tags.artist ?? '').trim().isEmpty) {
+        final named = fromName();
+        return Track.local(
+          filePath: filePath,
+          title: named.title,
+          artist: named.artist,
+          album: (tags.album ?? '').trim(),
+          genre: (tags.genre ?? '').trim(),
+          year: tags.year,
+          bpm: tags.bpm,
+        );
+      }
       return Track.local(
         filePath: filePath,
         title: (tags.title != null && tags.title!.trim().isNotEmpty)
@@ -383,7 +401,7 @@ class MusicLibraryService {
         bpm: tags.bpm,
       );
     } catch (_) {
-      return Track.local(filePath: filePath, title: fallbackTitle);
+      return fromName();
     }
   }
 

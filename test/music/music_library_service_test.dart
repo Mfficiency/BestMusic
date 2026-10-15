@@ -109,6 +109,19 @@ void main() {
       expect(tracks.single.source.name, 'local');
     });
 
+    test('an untagged "Artist - Song" file gets the song as title, the '
+        'artist as artist', () async {
+      await writeFile('Downloads/Kygo - Firestone.m4a');
+      await writeFile('Angèle - Balance ton quoi.mp3');
+
+      final tracks = await MusicLibraryService.instance.rescan();
+
+      final byTitle = {for (final t in tracks) t.title: t};
+      expect(byTitle.keys.toSet(), {'Firestone', 'Balance ton quoi'});
+      expect(byTitle['Firestone']!.artist, 'Kygo');
+      expect(byTitle['Balance ton quoi']!.artist, 'Angèle');
+    });
+
     test('an empty/unset music folder clears the library', () async {
       Config.musicFolder = '';
       final tracks = await MusicLibraryService.instance.rescan();

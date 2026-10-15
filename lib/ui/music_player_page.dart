@@ -972,62 +972,81 @@ class _PlaylistsTab extends StatelessWidget {
         return ValueListenableBuilder<List<MusicPlaylist>>(
           valueListenable: MusicPlaylistService.instance.playlists,
           builder: (context, userPlaylists, __) {
-            final playlists = [
-              ...MusicPlaylistService.instance.smartPlaylists,
-              ...userPlaylists,
-            ];
-            return ListView.builder(
-              itemCount: playlists.length + 3,
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return ListTile(
-                    leading: const Icon(Icons.add_circle_outline),
-                    title: const Text('New playlist'),
-                    onTap: () async {
-                      final name = await promptPlaylistName(context);
-                      if (name == null || name.trim().isEmpty) return;
-                      await MusicPlaylistService.instance
-                          .createPlaylist(name.trim(), []);
-                    },
-                  );
-                }
-                if (index == 1) {
-                  return ListTile(
-                    leading: const Icon(Icons.rule),
-                    title: const Text('New rule playlist'),
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const RulePlaylistEditorPage(),
-                    )),
-                  );
-                }
-                if (index == 2) {
-                  return ListTile(
-                    leading: const Icon(Icons.speed),
-                    title: const Text('Songs by BPM'),
-                    subtitle: const Text(
-                        'Pick a BPM range, play it or save it as a playlist'),
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const BpmRangePage(),
-                    )),
-                  );
-                }
-                final playlist = playlists[index - 3];
-                final trackCount =
-                    MusicPlaylistService.instance.resolvedTracks(playlist).length;
-                return ListTile(
-                  leading: Icon(_iconFor(playlist)),
-                  title: Text(playlist.name),
-                  subtitle: Text('$trackCount tracks'),
-                  trailing: _trailingFor(context, playlist),
+            // Hand-made playlists (Favorites/"Don't really like", built,
+            // imported or rule playlists) come first; the computed ones
+            // follow, with the per-genre "Most Played" lists tucked into a
+            // collapsed group so they don't push everything else down.
+            final smart = MusicPlaylistService.instance.smartPlaylists;
+            final byGenre = smart
+                .where((p) => (p.genreFilter ?? '').isNotEmpty)
+                .toList();
+            final otherSmart = smart
+                .where((p) => (p.genreFilter ?? '').isEmpty)
+                .toList();
+            return ListView(
+              children: [
+                for (final playlist in userPlaylists)
+                  _playlistTile(context, playlist),
+                ListTile(
+                  leading: const Icon(Icons.add_circle_outline),
+                  title: const Text('New playlist'),
+                  onTap: () async {
+                    final name = await promptPlaylistName(context);
+                    if (name == null || name.trim().isEmpty) return;
+                    await MusicPlaylistService.instance
+                        .createPlaylist(name.trim(), []);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.rule),
+                  title: const Text('New rule playlist'),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => MusicPlaylistDetailPage(playlist: playlist),
+                    builder: (_) => const RulePlaylistEditorPage(),
                   )),
-                );
-              },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.speed),
+                  title: const Text('Songs by BPM'),
+                  subtitle: const Text(
+                      'Pick a BPM range, play it or save it as a playlist'),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const BpmRangePage(),
+                  )),
+                ),
+                for (final playlist in otherSmart)
+                  _playlistTile(context, playlist),
+                if (byGenre.isNotEmpty)
+                  ExpansionTile(
+                    leading: const Icon(Icons.folder_outlined),
+                    title: const Text('Most played by genre'),
+                    subtitle: Text(
+                        '${byGenre.length} genre${byGenre.length == 1 ? '' : 's'}'),
+                    children: [
+                      for (final playlist in byGenre)
+                        _playlistTile(context, playlist,
+                            title: playlist.genreFilter),
+                    ],
+                  ),
+              ],
             );
           },
         );
       },
+    );
+  }
+
+  Widget _playlistTile(BuildContext context, MusicPlaylist playlist,
+      {String? title}) {
+    final trackCount =
+        MusicPlaylistService.instance.resolvedTracks(playlist).length;
+    return ListTile(
+      leading: Icon(_iconFor(playlist)),
+      title: Text(title ?? playlist.name),
+      subtitle: Text('$trackCount tracks'),
+      trailing: _trailingFor(context, playlist),
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => MusicPlaylistDetailPage(playlist: playlist),
+      )),
     );
   }
 }

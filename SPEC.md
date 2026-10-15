@@ -587,9 +587,12 @@ like OneDrive.
   `POST /api/music/delete` `{"id", "path"}` → 200, and `POST /api/music/move`
   `{"id", "path", "to"}` → 200 `{"path": <new path>}`; `path`/`to` as Navidrome reports them
   without a leading slash, `id` the Subsonic song id. On success the catalog and library are
-  updated right away (the Pi's next scan confirms). **These two endpoints still have to be added
-  to `mirror-music-upload` in the MagicMirror repo**; until then the Pi answers 404 and the app
-  says the server needs an update.
+  updated right away (the Pi's next scan confirms). The Pi side is `music-upload-server.py` in
+  the MagicMirror repo (2026-10-15): deletes go to its 30-day music trash (`mirrorctl music trash
+  restore`), moves never overwrite (409), and a path that isn't found falls back to the song id
+  via `getSong`. A Pi without them answers 404 and the app says the server needs an update.
+  Navidrome there has no file watcher, so a moved server song streams again only after its next
+  scan (night, or Scan server) — the move snackbar says so.
 - **Search** (0.3.40, `LibrarySearchResults`): library matches (synced server songs among them)
   plus, with a server set up, the server's own `search3` for the query (400 ms after typing
   stops) — songs the library doesn't have yet and that aren't on the phone. Server songs show a

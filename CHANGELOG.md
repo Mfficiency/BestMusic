@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.41] - 2026-10-15
+- Moving and deleting songs on the music server now works (the MagicMirror Pi got the update). Deleted server songs go to the Pi's trash for 30 days, so they can still be brought back. A moved server song plays again after the server's next scan (tonight, or tap Scan server).
+
 ## [0.3.40] - 2026-10-15
 - Songs: the ⋮ menu has 'Move to folder' (pick a folder or make a new one) and 'Delete' (asks first), for songs on your phone and on the music server; playlists and favourites follow the song. Moving or deleting server songs needs an update of the upload service on the Pi.
 - Search also looks on the music server, and songs from the server show a little cloud icon.

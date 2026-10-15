@@ -84,9 +84,13 @@ Future<void> pickFolderAndMove(BuildContext context, Track track) async {
   if (picked == null) return;
   final error = await TrackFileActions.instance.move(track, picked);
   final to = TrackFileActions.cleanFolder(picked);
+  final where = to.isEmpty ? 'the top folder' : to;
   messenger.showSnackBar(SnackBar(
       content: Text(error ??
-          'Moved "${track.title}" to ${to.isEmpty ? 'the top folder' : to}')));
+          (track.source == TrackSource.subsonic
+              ? 'Moved "${track.title}" to $where — it plays again after the '
+                  'server\'s next scan (tonight, or Scan server)'
+              : 'Moved "${track.title}" to $where'))));
 }
 
 class _NewFolderDialog extends StatefulWidget {

@@ -54,7 +54,7 @@ void main() {
         playCount: 4,
         metadataEdited: true,
         tags: ['Wedding songs', 'Belgian Top Charts'],
-      );
+      ).copyWith(skipCount: 2, upSwipeCount: 3, downSwipeCount: 1);
 
       final restored = Track.fromJson(track.toJson());
 
@@ -70,6 +70,9 @@ void main() {
       expect(restored.dateAdded, track.dateAdded);
       expect(restored.deviceDate, track.deviceDate);
       expect(restored.playCount, 4);
+      expect(restored.skipCount, 2);
+      expect(restored.upSwipeCount, 3);
+      expect(restored.downSwipeCount, 1);
       expect(restored.metadataEdited, isTrue);
       expect(restored.tags, ['Wedding songs', 'Belgian Top Charts']);
     });

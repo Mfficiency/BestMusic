@@ -11,6 +11,7 @@ import 'music_library_service.dart';
 import 'music_metadata_enricher.dart';
 import 'music_playlist_service.dart';
 import 'music_resume_service.dart';
+import 'play_history_service.dart';
 import 'wishlist_store.dart';
 import 'youtube_feed_service.dart';
 
@@ -32,7 +33,7 @@ class MusicRestoreResult {
 /// each of Best Music's own store files ([storeFiles]: library cache with
 /// play counts and analyzed metadata such as BPM, playlists, Subscriptions
 /// feed with watch progress, download history, metadata enrichment, the
-/// playback resume point).
+/// playback resume point, the play history).
 ///
 /// Local songs are keyed by their absolute path (`local:<path>`), so a
 /// restore onto a phone whose music folder lives elsewhere rewrites those
@@ -69,6 +70,7 @@ class MusicBackupService {
     // Read once at startup, so a restored resume point applies on the next
     // launch.
     MusicResumeService.fileName,
+    PlayHistoryService.fileName,
   ];
 
   static Future<Directory> _documents() => getApplicationDocumentsDirectory();
@@ -289,6 +291,8 @@ class MusicBackupService {
           await guard(Mp3DownloadManager.instance.reload);
         case MusicMetadataEnricher.fileName:
           await guard(MusicMetadataEnricher.instance.reload);
+        case PlayHistoryService.fileName:
+          await guard(PlayHistoryService.instance.reload);
       }
     }
   }

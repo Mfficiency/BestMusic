@@ -245,11 +245,12 @@ class MusicLibraryService {
                 // A BPM typed in by hand wins; a tag added later fills a gap.
                 bpm: previous.bpm ?? track.bpm,
               )
-            : track.copyWith(
-                dateAdded: previous?.dateAdded ?? now,
-                deviceDate: arrived,
-                playCount: previous?.playCount ?? 0,
-              );
+            : track
+                .copyWith(
+                  dateAdded: previous?.dateAdded ?? now,
+                  deviceDate: arrived,
+                )
+                .withCountersOf(previous);
         found.add(track);
         onTrackScanned?.call(found.length, track);
       }
@@ -301,10 +302,9 @@ class MusicLibraryService {
               ? previous.copyWith(
                   durationMs: track.durationMs ?? previous.durationMs,
                   bpm: previous.bpm ?? track.bpm)
-              : track.copyWith(
-                  dateAdded: previous.dateAdded ?? now,
-                  playCount: previous.playCount,
-                  tags: previous.tags)
+              : track
+                  .copyWith(dateAdded: previous.dateAdded ?? now, tags: previous.tags)
+                  .withCountersOf(previous)
         else
           track.copyWith(dateAdded: now),
     ];
@@ -441,6 +441,9 @@ class MusicLibraryService {
       dateAdded: existing.dateAdded,
       deviceDate: existing.deviceDate,
       playCount: existing.playCount,
+      skipCount: existing.skipCount,
+      upSwipeCount: existing.upSwipeCount,
+      downSwipeCount: existing.downSwipeCount,
       metadataEdited: true,
       tags: tags,
     );
@@ -482,6 +485,9 @@ class MusicLibraryService {
         dateAdded: existing.dateAdded,
         deviceDate: existing.deviceDate,
         playCount: existing.playCount,
+        skipCount: existing.skipCount,
+        upSwipeCount: existing.upSwipeCount,
+        downSwipeCount: existing.downSwipeCount,
         metadataEdited: true,
         tags: row.tags.isNotEmpty ? row.tags : existing.tags,
       );
@@ -542,12 +548,27 @@ class MusicLibraryService {
   /// Bumps [trackId]'s play count and persists it. No-op if the track isn't
   /// currently in the library (e.g. it was removed since the queue was
   /// built).
-  Future<void> incrementPlayCount(String trackId) async {
+  Future<void> incrementPlayCount(String trackId) =>
+      _bump(trackId, (t) => t.copyWith(playCount: t.playCount + 1));
+
+  /// Next pressed while [trackId] was playing. Same no-op rule as
+  /// [incrementPlayCount].
+  Future<void> incrementSkipCount(String trackId) =>
+      _bump(trackId, (t) => t.copyWith(skipCount: t.skipCount + 1));
+
+  /// Now Playing swiped up on [trackId].
+  Future<void> incrementUpSwipeCount(String trackId) =>
+      _bump(trackId, (t) => t.copyWith(upSwipeCount: t.upSwipeCount + 1));
+
+  /// Now Playing swiped down (or thumbs-down) on [trackId].
+  Future<void> incrementDownSwipeCount(String trackId) =>
+      _bump(trackId, (t) => t.copyWith(downSwipeCount: t.downSwipeCount + 1));
+
+  Future<void> _bump(String trackId, Track Function(Track) change) async {
     final index = tracks.value.indexWhere((t) => t.id == trackId);
     if (index < 0) return;
     final updated = List<Track>.of(tracks.value);
-    updated[index] =
-        updated[index].copyWith(playCount: updated[index].playCount + 1);
+    updated[index] = change(updated[index]);
     tracks.value = updated;
     await _save();
   }

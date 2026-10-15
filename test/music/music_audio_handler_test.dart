@@ -2,6 +2,7 @@ import 'package:best_music/models/track.dart';
 import 'package:best_music/services/music_audio_handler.dart';
 import 'package:best_music/services/music_library_service.dart';
 import 'package:best_music/services/music_playlist_service.dart';
+import 'package:best_music/services/now_playing.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -59,5 +60,26 @@ void main() {
     await handler.toggleShuffle();
     expect(handler.shuffleEnabled.value, isFalse);
     expect(ids(handler), order);
+  });
+
+  test('the track the player holds is published to NowPlaying', () {
+    NowPlaying.trackId.value = null;
+    final handler = handlerWithQueue();
+    expect(NowPlaying.trackId.value, 'local:/fake/a.mp3');
+    expect(handler.currentTrack!.id, NowPlaying.trackId.value);
+  });
+
+  test('swipe up counts every swipe and favorites, never un-favorites',
+      () async {
+    await MusicPlaylistService.instance.load();
+    final handler = handlerWithQueue();
+    MusicLibraryService.instance.tracks.value = handler.currentQueueTracks;
+    const id = 'local:/fake/a.mp3';
+
+    await handler.swipeUpCurrent();
+    await handler.swipeUpCurrent();
+
+    expect(MusicPlaylistService.instance.isFavorite(id), isTrue);
+    expect(MusicLibraryService.instance.byId(id)!.upSwipeCount, 2);
   });
 }

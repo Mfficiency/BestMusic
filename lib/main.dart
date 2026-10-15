@@ -16,6 +16,7 @@ import 'services/music_metadata_enricher.dart';
 import 'services/music_player_service.dart';
 import 'services/video_audio_cache.dart';
 import 'services/music_playlist_service.dart';
+import 'services/play_history_service.dart';
 import 'services/music_share_link.dart';
 import 'services/share_intent_service.dart';
 import 'services/server_offline_store.dart';
@@ -46,6 +47,7 @@ Future<void> main() async {
   MusicTheme.darkMode.value = Config.darkMode;
   await _initStep('music library', MusicLibraryService.instance.load);
   await _initStep('music playlists', MusicPlaylistService.instance.load);
+  await _initStep('play history', PlayHistoryService.instance.load);
   // Before the player: feed playback reads its settings (SponsorBlock)
   // and resume positions.
   await _initStep('subscriptions feed', YoutubeFeedService.instance.load);

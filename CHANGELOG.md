@@ -5,6 +5,17 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.46] - 2026-10-15
+- Now Playing: new "Add to playlist" button, so you can put the song that's playing in a playlist (or a new one) straight away.
+- The round "back to music / back to videos" button no longer floats above the song bar when the bar already has that button.
+- Switching from music to a video: the music stops, the video starts, and only then does the volume change to your video volume. Switching from a video to music: the volume goes down to your music volume first, then the song starts. No more loud moments when switching.
+
+## [0.3.45] - 2026-10-15
+- The song or video that's playing is now highlighted everywhere it's listed: your songs, playlists, the queue, Songs by BPM, server folders, search results and Subscriptions. The highlight moves along as the next song starts.
+- New: Tools → Play history. Every song and video you play, with the date and time, grouped by month and day. It's kept for 90 days, and you can delete single entries, a whole day, or everything.
+- A song's info page now shows how many times it was played, skipped, swiped up and swiped down. Shuffle uses all four: songs you play and swipe up come up earlier, songs you skip and swipe down come up later.
+- Swiping up on a song that's already a favourite no longer takes it out of Favourites.
+
 ## [0.3.44] - 2026-10-15
 - Songs named like "Artist - Song.m4a" now show just the song name, with the artist on the line below, everywhere in the app (lists, Now Playing, the notification, the widget, the Server tab). Untagged files get that artist too, so they land under the right artist in the Artists tab and in search.
 

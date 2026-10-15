@@ -31,7 +31,9 @@ import 'music_metadata_scan_page.dart';
 import 'music_mini_player_bar.dart';
 import 'music_settings_page.dart';
 import 'music_wishlist_page.dart';
+import 'now_playing_highlight.dart';
 import 'now_playing_page.dart';
+import 'play_history_page.dart';
 import 'rule_playlist_editor_page.dart';
 import 'startup_times_page.dart';
 import 'server_tab.dart';
@@ -227,6 +229,12 @@ class _MusicPlayerPageState extends State<MusicPlayerPage>
                 title: const Text('Wishlist'),
                 onTap: () =>
                     _pushStandalonePage(() => const MusicWishlistPage()),
+              ),
+              ListTile(
+                leading: const Icon(Icons.restore),
+                title: const Text('Play history'),
+                onTap: () =>
+                    _pushStandalonePage(() => const PlayHistoryPage()),
               ),
             ],
           ),
@@ -648,8 +656,13 @@ class _YoutubeSearchFallbackState extends State<YoutubeSearchFallback> {
           )
         else if (results != null)
           for (final result in results)
-            ListTile(
-              leading: const Icon(Icons.smart_display_outlined),
+            NowPlayingHighlight(
+              trackId: 'youtube:${result.videoId}',
+              builder: (context, isCurrent) => ListTile(
+              selected: isCurrent,
+              leading: isCurrent
+                  ? nowPlayingIcon
+                  : const Icon(Icons.smart_display_outlined),
               title: Text(result.title,
                   maxLines: 2, overflow: TextOverflow.ellipsis),
               subtitle: Text(
@@ -662,6 +675,7 @@ class _YoutubeSearchFallbackState extends State<YoutubeSearchFallback> {
               trailing: Icon(Icons.cloud_download_outlined,
                   size: 20, color: scheme.outline),
               onTap: () => _play(result),
+            ),
             ),
       ],
     );
@@ -1459,13 +1473,17 @@ class _TrackListViewState extends State<TrackListView> {
             ),
             itemBuilder: (context, index) {
               final track = tracks[index];
-              return ValueListenableBuilder<List<MusicPlaylist>>(
+              return NowPlayingHighlight(
+                trackId: track.id,
+                builder: (context, isCurrent) =>
+                    ValueListenableBuilder<List<MusicPlaylist>>(
                 valueListenable: MusicPlaylistService.instance.playlists,
                 builder: (context, _, __) {
                   final isFavorite =
                       MusicPlaylistService.instance.isFavorite(track.id);
                   return ListTile(
-                    leading: trackSourceIcon(track),
+                    selected: isCurrent,
+                    leading: isCurrent ? nowPlayingIcon : trackSourceIcon(track),
                     title: Text(_trackDisplayTitle(track),
                         maxLines: 1, overflow: TextOverflow.ellipsis),
                     // Always two lines (matching the prototype row height).
@@ -1594,6 +1612,7 @@ class _TrackListViewState extends State<TrackListView> {
                     onTap: () => _play(tracks, startIndex: index),
                   );
                 },
+                ),
               );
             },
           ),

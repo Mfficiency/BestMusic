@@ -725,6 +725,13 @@ is the one place that turns any `MusicPlaylist` (whatever its `kind`) into an ac
 — `MusicPlaylistDetailPage`/the Playlists tab's track-count subtitle both go through it instead of
 reading `trackIds` directly, so they work uniformly across stored and computed playlists.
 
+**Playlists tab order** — hand-made playlists (Favorites/"Don't really like", hand-built, M3U
+imports, rule playlists, in stored order) come first, then the New playlist / New rule playlist /
+Songs by BPM rows, then "Last Added" and the overall "Most Played". The per-genre "Most Played"
+lists sit in a collapsed "Most played by genre" `ExpansionTile` (subtitle "N genres", each entry
+titled by its genre alone; the detail page keeps the full "Most Played: <genre>" name). The group
+is omitted when no track has a genre.
+
 **Rule-based ("smart" in the iTunes/Plex sense) playlists** — `lib/models/playlist_rule.dart`:
 `RuleCondition` (a `RuleField` — title/artist/album/genre/year — a `RuleOperator`, and a
 `values` list) plus `PlaylistRuleSet` (a `RuleCombinator.all`/`any` over a list of conditions).

@@ -121,7 +121,7 @@ void main() {
     await capture('music_playlist_detail_page');
     await popCurrentPage();
 
-    // New rule playlist editor — always the first Playlists-tab entry.
+    // New rule playlist editor — listed right below the hand-made playlists.
     await tester.tap(find.text('New rule playlist'));
     await tester.pumpAndSettle();
     await capture('rule_playlist_editor_page');

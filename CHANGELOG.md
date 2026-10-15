@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.33] - 2026-10-15
+- Playlists: your own playlists (Favorites, the ones you made or imported, rule playlists) are now at the top. The "Most Played" list for each genre is tucked into a "Most played by genre" folder you can tap open, so it no longer pushes everything else down.
+
 ## [0.3.32] - 2026-10-12
 - Subscriptions → Channels: new 'Add channels by name' button — paste a list of channel names, one per line, and Best Music subscribes to all of them at once (it tells you which names it couldn't find).
 

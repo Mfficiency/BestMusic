@@ -1929,3 +1929,15 @@ Tests: `test/tools/music_share_link_test.dart` (`detectBestMusicShare`, other-li
 resolving), `test/tools/mp3_downloader_test.dart` ("autoDownloadTopMatch (Best Music)"),
 `test/music/music_download_library_sync_test.dart`, `test/update/music_build_wiring_test.dart`
 (manifest overlay).
+
+### 10.6r Settings survive updates (Best Music 0.3.36)
+
+`Config.save` writes `settings.json` through `SafeFile.writeString` (atomic `.tmp` + rename,
+previous content kept as `settings.json.bak`) and `Config.load` reads it through
+`SafeFile.readWithRecovery`, so a save cut off by the app being killed — an update installing,
+while `MediaVolume` saves on every volume change — falls back to the last good settings
+instead of silently resetting everything (the music server login included). The music server
+address, user name and password are also kept in `music_server.json` (same SafeFile handling),
+rewritten only when they change; `load` takes the login from there whenever `settings.json`
+has no server address. A failed "Connect" in the Server tab now puts the previous login back
+instead of clearing just the user name. Tests: `test/music/config_persistence_test.dart`.

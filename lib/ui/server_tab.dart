@@ -356,13 +356,20 @@ class _ServerSetupState extends State<_ServerSetup> {
       _busy = true;
       _error = null;
     });
+    final previousUrl = Config.subsonicServerUrl;
+    final previousUser = Config.subsonicUsername;
+    final previousPassword = Config.subsonicPassword;
     Config.subsonicServerUrl = _url.text.trim();
     Config.subsonicUsername = _user.text.trim();
     Config.subsonicPassword = _password.text;
     final ok = await SubsonicClient.instance.ping();
     if (!mounted) return;
     if (!ok) {
-      Config.subsonicUsername = '';
+      // Put back what was there, rather than leaving a half-cleared login
+      // that the next save (of any setting) would persist.
+      Config.subsonicServerUrl = previousUrl;
+      Config.subsonicUsername = previousUser;
+      Config.subsonicPassword = previousPassword;
       setState(() {
         _busy = false;
         _error = 'No connection. Check the address (try the Pi\'s IP address, '

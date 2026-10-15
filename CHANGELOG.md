@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.36] - 2026-10-15
+- Music server: the address, user name and password are now kept safely across updates — an update no longer makes you log in to the server again. All other settings are better protected the same way.
+
 ## [0.3.35] - 2026-10-14
 - New Server tab: your music server's songs in folders, like OneDrive. Connect right in the tab (no more hunting for Sync now; it's also always shown in Settings now). Every folder or song can be kept on this phone to play offline, or left online only with 'Free up space', which can also delete the phone's own copies once they're safely on the server. 'Upload phone music' sends the songs on your phone that the MagicMirror Pi doesn't have yet; the Pi adds them at night and cleans up duplicates then. Songs that are both on the phone and the server now show only once in your library. Fixed: plain http servers like the Pi couldn't be reached on Android.
 

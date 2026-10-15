@@ -142,6 +142,74 @@ class SubsonicClient {
     }
   }
 
+  /// Every song on the server walked album by album (`getAlbumList2` +
+  /// `getAlbum`): slower than [allSongs] (a request per album), so only the
+  /// fallback for servers whose empty-query `search3` returns less than the
+  /// whole library. Null when the server can't be reached or a page fails.
+  Future<List<Track>?> allSongsByAlbum(
+      {void Function(int fetched)? onPage}) async {
+    if (!isConfigured) return null;
+    final albumIds = <String>[];
+    for (var offset = 0;; offset += pageSize) {
+      final r = await _get(
+          'getAlbumList2',
+          {
+            'type': 'alphabeticalByName',
+            'size': '$pageSize',
+            'offset': '$offset',
+          },
+          const Duration(seconds: 60));
+      if (r == null) return null;
+      final list = r['albumList2'] as Map<String, dynamic>?;
+      final albums = (list?['album'] as List<dynamic>? ?? []).whereType<Map>();
+      albumIds.addAll([
+        for (final a in albums)
+          if (a['id'] != null) a['id'].toString(),
+      ]);
+      if (albums.length < pageSize) break;
+    }
+    final all = <Track>[];
+    final seen = <String>{};
+    for (final id in albumIds) {
+      final r = await _get('getAlbum', {'id': id});
+      if (r == null) return null;
+      final album = r['album'] as Map<String, dynamic>?;
+      final songs = (album?['song'] as List<dynamic>? ?? []).whereType<Map>();
+      for (final song in songs) {
+        final track = _songToTrack(Map<String, dynamic>.from(song));
+        if (track.remoteId!.isNotEmpty && seen.add(track.remoteId!)) {
+          all.add(track);
+        }
+      }
+      onPage?.call(all.length);
+    }
+    return all;
+  }
+
+  /// What the server's own library scan knows (`getScanStatus`), or null
+  /// when it can't be reached or doesn't say.
+  Future<ServerScanStatus?> scanStatus() async {
+    if (!isConfigured) return null;
+    final r = await _get('getScanStatus', null, const Duration(seconds: 10));
+    final status = r?['scanStatus'];
+    if (status is! Map) return null;
+    return ServerScanStatus(
+      scanning: status['scanning'] == true,
+      count: (status['count'] as num?)?.round(),
+      lastScan: status['lastScan'] is String
+          ? DateTime.tryParse(status['lastScan'] as String)?.toLocal()
+          : null,
+    );
+  }
+
+  /// Asks the server to scan its music folder for new files (`startScan`;
+  /// Navidrome only lets admin accounts do this). False when refused or the
+  /// server can't be reached.
+  Future<bool> startScan() async {
+    if (!isConfigured) return false;
+    return await _get('startScan', null, const Duration(seconds: 15)) != null;
+  }
+
   List<Track> _songs(Map<String, dynamic>? r) {
     final result = r?['searchResult3'] as Map<String, dynamic>?;
     final songs = result?['song'] as List<dynamic>? ?? [];
@@ -157,8 +225,11 @@ class SubsonicClient {
     // OpenSubsonic servers (Navidrome, ...) send the song's BPM; 0 = unknown.
     final bpm = (song['bpm'] as num?)?.round();
     // The real folder path when the server reports it (Navidrome:
-    // [Subsonic] DefaultReportRealPath).
-    final path = (song['path'] as String?)?.replaceAll(r'\', '/');
+    // [Subsonic] DefaultReportRealPath). Absolute paths ("/music/...") lose
+    // the leading slash, which would otherwise make a nameless top folder.
+    final path = (song['path'] as String?)
+        ?.replaceAll(r'\', '/')
+        .replaceFirst(RegExp(r'^/+'), '');
     return Track.subsonic(
       remoteId: song['id']?.toString() ?? '',
       remotePath: path != null && path.isNotEmpty ? path : null,
@@ -173,4 +244,18 @@ class SubsonicClient {
       bpm: bpm != null && bpm > 0 ? bpm : null,
     );
   }
+}
+
+/// The server's own library scan, as `getScanStatus` reports it.
+class ServerScanStatus {
+  const ServerScanStatus({required this.scanning, this.count, this.lastScan});
+
+  /// Whether the server is scanning its music folder right now.
+  final bool scanning;
+
+  /// How many songs the server's scan found; null when it doesn't say.
+  final int? count;
+
+  /// When the last scan finished (Navidrome); null when unknown.
+  final DateTime? lastScan;
 }

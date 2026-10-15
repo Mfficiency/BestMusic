@@ -530,7 +530,16 @@ so the plaintext password never goes on the wire (it is stored in plaintext on t
   edits kept across syncs; songs gone from the server leave). A folder `rescan` keeps the
   server songs. Title, artist, album, genre, year and BPM come from the server's own tag scan;
   the phone never downloads server songs to analyse them (`MusicMetadataEnricher` only handles
-  folder songs).
+  folder songs). After the listing the sync reads `getScanStatus` (`ServerScanStatus`: scanning,
+  count, lastScan; kept in `SubsonicLibrarySync.serverScan`, also fetched at app start) and,
+  when search3 gave nothing or fewer songs than the server says it scanned, walks the library
+  album by album instead (`allSongsByAlbum`: `getAlbumList2` alphabeticalByName pages +
+  `getAlbum` each, songs de-duplicated by id) and keeps the longer list (0.3.39). The Server
+  tab header shows what the server itself knows ("The server itself knows N songs · last
+  scanned …", or that it is scanning) and has **Scan server**: `scanServerThenSync` calls
+  `startScan` (Navidrome: admin accounts only; refused → a snackbar says so), polls
+  `getScanStatus` every 5 s (at most 30 min) until the scan is done, then syncs. Server paths
+  lose a leading `/` (Navidrome real paths like `/music/...` made a nameless top folder).
 - **When:** the full listing is the one bulk job the app asks of the server, so it runs on its
   own only inside the sync window (the same night window the Pi's Navidrome scans in), at most
   once per window (`SubsonicLibrarySync.minGap` 12 h), while the app is running: at start, on

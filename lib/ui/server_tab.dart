@@ -85,6 +85,8 @@ class ServerFolderView extends StatelessWidget {
         offline.changes,
         offline.progress,
         SubsonicLibrarySync.instance.syncing,
+        SubsonicLibrarySync.instance.serverScan,
+        SubsonicLibrarySync.instance.serverScanning,
         ServerUploadService.instance.progress,
       ]),
       builder: (context, _) {
@@ -182,9 +184,29 @@ class _ServerHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final syncing = SubsonicLibrarySync.instance.syncing.value;
+    final scanningServer = SubsonicLibrarySync.instance.serverScanning.value;
+    final scan = SubsonicLibrarySync.instance.serverScan.value;
     final uploading = ServerUploadService.instance.progress.value;
     final last = Config.subsonicLastSync;
     String two(int v) => v.toString().padLeft(2, '0');
+    final scanCount = scan?.count;
+    final lastScan = scan?.lastScan;
+    final String? scanLine;
+    if (scanningServer || scan?.scanning == true) {
+      scanLine = 'The server is scanning its music folder'
+          '${scanCount != null ? ' ($scanCount songs so far)' : ''}'
+          ' — new songs come in once it is done';
+    } else if (scan != null) {
+      scanLine = 'The server itself knows '
+          '${scanCount != null ? '$scanCount songs' : 'its songs'}'
+          '${lastScan != null ? ' · last scanned ${lastScan.day}.'
+              '${lastScan.month}. ${two(lastScan.hour)}:'
+              '${two(lastScan.minute)}' : ''}'
+          '. Songs copied or uploaded to it since then come in after its '
+          'next scan.';
+    } else {
+      scanLine = null;
+    }
     return Card(
       margin: const EdgeInsets.fromLTRB(12, 12, 12, 4),
       child: Padding(
@@ -199,6 +221,7 @@ class _ServerHeader extends StatelessWidget {
                 : '$songCount songs · synced ${last.day}.${last.month}. '
                     '${two(last.hour)}:${two(last.minute)} · syncs by itself '
                     'at ${Config.subsonicSyncWindow}'),
+            if (scanLine != null) Text(scanLine),
             if (uploading != null) ...[
               Text('Uploading $uploading'),
               TaskRemainingText(ServerUploadService.instance.transfer),
@@ -215,6 +238,17 @@ class _ServerHeader extends StatelessWidget {
                         child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.sync),
                 label: const Text('Sync now'),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: syncing || scanningServer
+                    ? null
+                    : () => _scanServer(context),
+                icon: scanningServer
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.manage_search),
+                label: const Text('Scan server'),
               ),
               FilledButton.tonalIcon(
                 onPressed: () => Navigator.of(context).push(MaterialPageRoute(
@@ -236,6 +270,20 @@ class _ServerHeader extends StatelessWidget {
       content: Text(count == null
           ? 'Sync failed — the server could not be reached'
           : '$count songs on the server'),
+    ));
+  }
+
+  Future<void> _scanServer(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(const SnackBar(
+        content: Text('Asked the server to scan for new songs — this can '
+            'take a while on the Pi')));
+    final count = await SubsonicLibrarySync.instance.scanServerThenSync();
+    messenger.showSnackBar(SnackBar(
+      content: Text(count == null
+          ? 'The server did not scan — only its admin account may start a '
+              'scan, or it could not be reached'
+          : 'Scan done: $count songs on the server'),
     ));
   }
 }

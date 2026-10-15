@@ -42,6 +42,21 @@ class SubsonicLibrarySync {
   final ValueNotifier<TaskProgress?> progress =
       ValueNotifier<TaskProgress?>(null);
 
+  /// The server's own scan status as of the last sync or scan check
+  /// (shown in the Server tab, so a song count lower than expected can be
+  /// told apart from songs the server simply hasn't scanned yet).
+  final ValueNotifier<ServerScanStatus?> serverScan =
+      ValueNotifier<ServerScanStatus?>(null);
+
+  /// True while [scanServerThenSync] waits for the server's scan.
+  final ValueNotifier<bool> serverScanning = ValueNotifier<bool>(false);
+
+  /// How often [scanServerThenSync] checks whether the scan is done, and how
+  /// long it waits at most.
+  @visibleForTesting
+  Duration scanPollEvery = const Duration(seconds: 5);
+  static const Duration scanWaitAtMost = Duration(minutes: 30);
+
   Timer? _timer;
   Future<int?>? _running;
 
@@ -95,7 +110,9 @@ class SubsonicLibrarySync {
         await library.replaceServerTracks(catalog.songs.value);
         await ServerOfflineStore.instance.sync();
       }
-      await maybeSync();
+      if (await maybeSync() == null && client.isConfigured) {
+        await refreshScanStatus();
+      }
     }());
   }
 
@@ -124,12 +141,26 @@ class SubsonicLibrarySync {
     final expected = catalog.songs.value.length;
     final tracker = expected > 0 ? TaskProgressTracker(progress) : null;
     try {
-      final songs = await client.allSongs(
-          onPage: (fetched) =>
-              tracker?.set((fetched / expected).clamp(0.0, 0.99)));
+      void onPage(int fetched) =>
+          tracker?.set((fetched / expected).clamp(0.0, 0.99));
+      var songs = await client.allSongs(onPage: onPage);
       if (songs == null) {
         LogService.add('Music', 'server sync: server not reachable');
         return null;
+      }
+      final scan = await client.scanStatus();
+      serverScan.value = scan;
+      final scanned = scan?.count;
+      if (songs.isEmpty || (scanned != null && scanned > songs.length)) {
+        // Some servers' empty-query search3 returns only part of the
+        // library; walk it album by album instead.
+        final byAlbum = await client.allSongsByAlbum(onPage: onPage);
+        LogService.add(
+            'Music',
+            'server sync: search3 gave ${songs.length} song(s), the server '
+                'scanned ${scanned ?? '?'}, albums gave '
+                '${byAlbum?.length ?? 'nothing'}');
+        if (byAlbum != null && byAlbum.length > songs.length) songs = byAlbum;
       }
       await catalog.replace(songs);
       await library.replaceServerTracks(songs);
@@ -142,6 +173,39 @@ class SubsonicLibrarySync {
     } finally {
       tracker?.end();
       syncing.value = false;
+    }
+  }
+
+  /// Fetches the server's scan status into [serverScan] (cheap; the Server
+  /// tab shows it; fetched at app start and on every sync).
+  Future<void> refreshScanStatus() async {
+    final status = await client.scanStatus();
+    if (status != null) serverScan.value = status;
+  }
+
+  /// Asks the server to scan its music folder (picking up songs copied or
+  /// uploaded to it since its last scan — the MagicMirror Pi otherwise
+  /// scans only at night), waits until the scan is done and then syncs.
+  /// Returns the synced song count; null when the server refused the scan
+  /// (Navidrome allows it for admin accounts only) or couldn't be reached.
+  Future<int?> scanServerThenSync() async {
+    if (serverScanning.value) return null;
+    serverScanning.value = true;
+    try {
+      if (!await client.startScan()) {
+        LogService.add('Music', 'server scan: refused or not reachable');
+        return null;
+      }
+      final until = DateTime.now().add(scanWaitAtMost);
+      while (DateTime.now().isBefore(until)) {
+        await Future<void>.delayed(scanPollEvery);
+        final status = await client.scanStatus();
+        if (status != null) serverScan.value = status;
+        if (status != null && !status.scanning) break;
+      }
+      return await syncNow();
+    } finally {
+      serverScanning.value = false;
     }
   }
 

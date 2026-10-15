@@ -121,6 +121,42 @@ void main() {
       expect(await client.allSongs(), isNull);
     });
 
+    test('scanStatus reads what the server scanned', () async {
+      client.httpClient = MockClient((request) async => http.Response(
+          jsonEncode({
+            'subsonic-response': {
+              'status': 'ok',
+              'scanStatus': {
+                'scanning': false,
+                'count': 1234,
+                'lastScan': '2026-10-15T01:12:00Z',
+              },
+            }
+          }),
+          200));
+      final status = await client.scanStatus();
+      expect(status!.scanning, isFalse);
+      expect(status.count, 1234);
+      expect(status.lastScan, DateTime.utc(2026, 10, 15, 1, 12).toLocal());
+    });
+
+    test('absolute server paths lose the leading slash', () async {
+      client.httpClient = MockClient((request) async => http.Response(
+          jsonEncode({
+            'subsonic-response': {
+              'status': 'ok',
+              'searchResult3': {
+                'song': [
+                  {'id': '1', 'title': 'Woof', 'path': '/music/Chill/Woof.mp3'}
+                ]
+              },
+            }
+          }),
+          200));
+      final songs = await client.allSongs();
+      expect(songs!.single.remotePath, 'music/Chill/Woof.mp3');
+    });
+
     test('ping is true against a server answering ok', () async {
       client.httpClient = _server(0);
       expect(await client.ping(), isTrue);
@@ -164,6 +200,91 @@ void main() {
       client.httpClient = _server(3, log: log);
       expect(await sync.maybeSync(now: DateTime(2026, 10, 14, 14)), isNull);
       expect(log, isEmpty);
+    });
+  });
+
+  group('server listing only part of the library', () {
+    // search3 gives 2 songs, but the server scanned 3 (in 2 albums).
+    Future<http.Response> partialServer(http.Request request) async {
+      final path = request.url.path;
+      final q = request.url.queryParameters;
+      Map<String, dynamic> body;
+      if (path.endsWith('/getScanStatus')) {
+        body = {
+          'scanStatus': {'scanning': false, 'count': 3}
+        };
+      } else if (path.endsWith('/getAlbumList2')) {
+        body = {
+          'albumList2': {
+            'album': [
+              {'id': 'a1'},
+              {'id': 'a2'},
+            ]
+          }
+        };
+      } else if (path.endsWith('/getAlbum')) {
+        body = {
+          'album': {
+            'song': q['id'] == 'a1'
+                ? [_song(0), _song(1)]
+                : [_song(1), _song(2)], // song-1 twice: counted once
+          }
+        };
+      } else {
+        body = {
+          'searchResult3': {
+            'song': [_song(0), _song(1)]
+          }
+        };
+      }
+      return http.Response(
+          jsonEncode({
+            'subsonic-response': {'status': 'ok', ...body}
+          }),
+          200);
+    }
+
+    test('the sync walks the albums when search3 comes up short', () async {
+      client.httpClient = MockClient(partialServer);
+      expect(await sync.syncNow(), 3);
+      expect(ServerCatalog.instance.songs.value.map((t) => t.remoteId),
+          unorderedEquals(['song-0', 'song-1', 'song-2']));
+      expect(sync.serverScan.value!.count, 3);
+    });
+
+    test('Scan server starts a scan, waits for it, then syncs', () async {
+      final calls = <String>[];
+      client.httpClient = MockClient((request) {
+        calls.add(request.url.pathSegments.last);
+        if (request.url.path.endsWith('/startScan')) {
+          return Future.value(http.Response(
+              jsonEncode({
+                'subsonic-response': {
+                  'status': 'ok',
+                  'scanStatus': {'scanning': true, 'count': 0}
+                }
+              }),
+              200));
+        }
+        return partialServer(request);
+      });
+      sync.scanPollEvery = Duration.zero;
+      expect(await sync.scanServerThenSync(), 3);
+      expect(calls.first, 'startScan');
+      expect(calls[1], 'getScanStatus');
+      expect(sync.serverScanning.value, isFalse);
+    });
+
+    test('Scan server gives null when the server refuses', () async {
+      client.httpClient = MockClient((request) async => http.Response(
+          jsonEncode({
+            'subsonic-response': {
+              'status': 'failed',
+              'error': {'code': 50, 'message': 'not authorized'}
+            }
+          }),
+          200));
+      expect(await sync.scanServerThenSync(), isNull);
     });
   });
 

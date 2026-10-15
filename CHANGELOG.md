@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.39] - 2026-10-15
+- Server tab: shows how many songs the server itself knows and when it last scanned its music folder, so you can see when songs simply haven't been picked up by the server yet. New 'Scan server' button: asks the server to look for new songs right away (needs the server's admin account), waits until it is done and then syncs. If the server lists fewer songs than it knows, Sync now fetches them album by album instead. Fixed: the server's top folder showed without a name.
+
 ## [0.3.38] - 2026-10-15
 - Long tasks show roughly how much time is left (hh:mm:ss remaining) below their progress once they look like they take more than 30 seconds: uploading phone music to the music server, syncing with the server, keeping server songs on the phone, MP3 downloads, the library scan, looking up song info and detecting BPM, refreshing the Subscriptions feed and importing channels; app updates too
 

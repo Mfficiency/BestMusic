@@ -523,14 +523,30 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
     _audibleSinceLoad = false;
     _persist();
     _loadSkipSegments(track);
+    final order = volumeOrder(MediaVolume.playingKind,
+        track.isFeedVideo ? VolumeKind.video : VolumeKind.music);
     try {
+      // Video → music: down to the music volume while the video still
+      // plays, then switch.
+      if (order == VolumeOrder.beforeSwitch) await _applyVolume(track);
+      // Music → video: the music stops now rather than playing on while
+      // the video is looked up.
+      if (order == VolumeOrder.afterSwitch) await _player.pause();
       final source = await _audioSourceFor(track);
       await _player.setAudioSource(source, initialPosition: startAt);
       _sourceLoaded = true;
       _loadedTrackId = track.id;
       unawaited(PlayHistoryService.instance.record(track));
       await _applySpeed(track);
-      await _applyVolume(track);
+      if (order == VolumeOrder.afterSwitch) {
+        // Music → video: the video starts first, then the volume moves to
+        // the video's level.
+        unawaited(_player.play());
+        await _untilAudible();
+        await _applyVolume(track);
+      } else if (order == VolumeOrder.whenLoaded) {
+        await _applyVolume(track);
+      }
       // Keep a full copy of a video you start, so stopping halfway and
       // coming back later (even offline) is instant.
       if (track.isFeedVideo) {
@@ -548,6 +564,34 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
       // than getting stuck silently.
       await _advance(1, wrapWithReshuffle: true);
     }
+  }
+
+  /// When [_playCurrent] moves the phone volume, given the kind that was
+  /// playing ([MediaVolume.playingKind]) and the kind starting: from a
+  /// video to music the volume changes first and the song starts after;
+  /// from music to a video the video starts first and the volume changes
+  /// once it plays; otherwise (same kind, or nothing played before) right
+  /// after loading, as before.
+  static VolumeOrder volumeOrder(VolumeKind? playing, VolumeKind next) {
+    if (playing == VolumeKind.video && next == VolumeKind.music) {
+      return VolumeOrder.beforeSwitch;
+    }
+    if (playing == VolumeKind.music && next == VolumeKind.video) {
+      return VolumeOrder.afterSwitch;
+    }
+    return VolumeOrder.whenLoaded;
+  }
+
+  /// Waits until sound is actually coming out (playing and ready), at
+  /// most [timeout] — a video that stalls still gets its volume.
+  Future<void> _untilAudible(
+      {Duration timeout = const Duration(seconds: 10)}) async {
+    try {
+      await _player.playerStateStream
+          .firstWhere((s) =>
+              s.playing && s.processingState == ja.ProcessingState.ready)
+          .timeout(timeout);
+    } catch (_) {}
   }
 
   /// The last video speed picked — remembered in the feed settings.
@@ -784,3 +828,6 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
     await _player.dispose();
   }
 }
+
+/// See [MusicAudioHandler.volumeOrder].
+enum VolumeOrder { beforeSwitch, afterSwitch, whenLoaded }

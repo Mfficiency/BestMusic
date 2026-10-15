@@ -294,8 +294,10 @@ class _SleepTimerBadge extends StatelessWidget {
 /// it where it was left
 /// — the last song at the music volume and 1×, or the last video at the
 /// video volume and speed ([MusicAudioHandler.switchToOtherSession]).
-/// Hidden while there's nothing to switch to, and while Now Playing (which
-/// has its own switch chip) is open. Outside the navigator, so no tooltip.
+/// Hidden while there's nothing to switch to, while the song bar already
+/// shows its own switch button ([SwitchSessionButton]), and while Now
+/// Playing (which has its own switch chip) is open. Outside the navigator,
+/// so no tooltip.
 class SessionSwitchPill extends StatelessWidget {
   const SessionSwitchPill({super.key, this.handler, this.navigatorKey});
 
@@ -324,6 +326,11 @@ class SessionSwitchPill extends StatelessWidget {
             builder: (context, _) {
               final target = audio.switchTarget();
               if (target == null) return const SizedBox.shrink();
+              // The song bar shows a switch button of its own then.
+              if (audio.mediaItem.valueOrNull != null &&
+                  audio.otherSession.value != null) {
+                return const SizedBox.shrink();
+              }
               final scheme = Theme.of(context).colorScheme;
               final label = target.isVideo ? 'Back to videos' : 'Back to music';
               // A small see-through circle rather than a labelled pill, so

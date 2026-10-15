@@ -8,6 +8,7 @@ import '../services/music_player_service.dart';
 import '../services/speaker_play_guard.dart';
 import '../services/music_playlist_service.dart';
 import 'estimated_progress_bar.dart';
+import 'music_player_page.dart' show showAddToPlaylistSheet;
 import 'music_mini_player_bar.dart'
     show SwitchSessionButton, switchSessionAndShow;
 import 'playback_speed_sheet.dart';
@@ -248,7 +249,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
 }
 
 /// The rest of the controls, under the transport: speed (videos), volume,
-/// sleep timer, shuffle, queue and track info.
+/// sleep timer, shuffle, queue, add to playlist (songs) and track info.
 class _ToolsRow extends StatelessWidget {
   const _ToolsRow({required this.handler});
 
@@ -287,6 +288,13 @@ class _ToolsRow extends StatelessWidget {
             MaterialPageRoute(builder: (_) => const QueuePage()),
           ),
         ),
+        // Songs only: Subscriptions videos aren't library tracks.
+        if (track != null && !video)
+          IconButton(
+            icon: const Icon(Icons.playlist_add),
+            tooltip: 'Add to playlist',
+            onPressed: () => showAddToPlaylistSheet(context, track),
+          ),
         IconButton(
           icon: const Icon(Icons.info_outline),
           tooltip: 'Track info',

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:best_music/models/track.dart';
 import 'package:best_music/models/youtube_feed.dart';
+import 'package:best_music/services/media_volume.dart';
 import 'package:best_music/services/music_audio_handler.dart';
 import 'package:best_music/services/music_library_service.dart';
 import 'package:best_music/services/music_player_service.dart';
@@ -299,8 +300,8 @@ void main() {
     testWidgets('shows "Back to videos" with a remembered video session',
         (tester) async {
       YoutubeFeedService.instance.resetForTest();
+      // Nothing loaded: no song bar, so the floating button is the way back.
       final handler = MusicAudioHandler();
-      handler.restore([track('a')]);
 
       await tester.pumpWidget(MaterialApp(
           home: Scaffold(body: SessionSwitchPill(handler: handler))));
@@ -320,6 +321,45 @@ void main() {
       expect(
           tester.getSize(find.byKey(const ValueKey('sessionSwitchPill'))),
           const Size(40, 40));
+    });
+
+    testWidgets('hidden while the song bar shows its own switch button',
+        (tester) async {
+      YoutubeFeedService.instance.resetForTest();
+      final handler = MusicAudioHandler();
+      handler.restore([track('a')]);
+      handler.restoreOtherSession(PlaybackSession(
+        queue: [Track.youtube(videoId: 'v1', title: 'Talk')],
+        index: 0,
+        position: Duration.zero,
+      ));
+
+      await tester.pumpWidget(MaterialApp(
+          home: Scaffold(
+              body: Column(children: [
+        SessionSwitchPill(handler: handler),
+        MusicMiniPlayerBar(handler: handler),
+      ]))));
+
+      expect(find.byKey(const ValueKey('switchSessionButton')), findsOneWidget);
+      expect(find.byKey(const ValueKey('sessionSwitchPill')), findsNothing);
+    });
+
+    test('volume order: video → music lowers first, music → video switches '
+        'first', () {
+      expect(MusicAudioHandler.volumeOrder(VolumeKind.video, VolumeKind.music),
+          VolumeOrder.beforeSwitch);
+      expect(MusicAudioHandler.volumeOrder(VolumeKind.music, VolumeKind.video),
+          VolumeOrder.afterSwitch);
+      for (final (playing, next) in [
+        (VolumeKind.music, VolumeKind.music),
+        (VolumeKind.video, VolumeKind.video),
+        (null, VolumeKind.music),
+        (null, VolumeKind.video),
+      ]) {
+        expect(MusicAudioHandler.volumeOrder(playing, next),
+            VolumeOrder.whenLoaded);
+      }
     });
 
     test('with no remembered video, falls back to the last played one',

@@ -2053,3 +2053,22 @@ button, the end-of-queue reshuffle, the switch from videos back to music).
 Tests: `test/music/play_history_service_test.dart`, `test/music/play_history_page_test.dart`,
 `music_playlist_service_test.dart` (factor/weight/ordering), `music_audio_handler_test.dart`,
 `music_player_page_test.dart`, `youtube_feed_page_test.dart`, `track_metadata_page_test.dart`.
+
+### 10.6t Add to playlist from Now Playing, one switch button, volume order on switching (Best Music 0.3.44)
+
+- **Add to playlist** — Now Playing's tools row gains a `playlist_add` button (tooltip "Add to
+  playlist", songs only — hidden for Subscriptions videos) that opens the same
+  `showAddToPlaylistSheet` as a track row's ⋮ menu: New playlist, then a checkbox per hand-built
+  playlist.
+- **One switch button** — `SessionSwitchPill` (the floating bottom-left circle) is now also
+  hidden whenever the song bar shows its own `SwitchSessionButton` (a track is loaded and
+  `otherSession` is set). It still shows when the bar has none to offer, e.g. nothing loaded yet
+  or no remembered other session but a last-played video to go back to.
+- **Volume order** — `MusicAudioHandler.volumeOrder(MediaVolume.playingKind, nextKind)` decides
+  when `_playCurrent` moves the phone volume: video → music (`beforeSwitch`): the music volume is
+  set first, while the video still plays, then the song loads and starts; music → video
+  (`afterSwitch`): the music is paused at once, the video loads and starts, and the volume
+  changes once it is actually playing (`_untilAudible`: playing + ready, at most 10 s); same
+  kind or nothing before (`whenLoaded`): right after loading, as before.
+  Tests: `test/music/music_resume_test.dart` (pill hidden next to the bar's button, volume
+  order), `test/music/now_playing_page_test.dart` (Add to playlist).

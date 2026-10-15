@@ -3,6 +3,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/mp3_download_manager.dart';
+import 'remaining_time_text.dart';
 import 'subpage_app_bar.dart';
 
 /// The public `https://youtube.com/watch?v=<id>` URL for a job's source
@@ -98,6 +99,11 @@ class _JobTile extends StatelessWidget {
                   '${((job.progress ?? 0) * 100).round()}%'
               : 'Starting…',
           style: theme.textTheme.bodySmall,
+        ));
+        subtitle.add(RemainingTimeText(
+          key: ValueKey('remaining-${job.id}'),
+          done: job.progress,
+          startedAt: job.startedAt,
         ));
         break;
       case Mp3DownloadStatus.completed:

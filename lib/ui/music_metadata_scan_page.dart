@@ -10,6 +10,7 @@ import '../models/track.dart';
 import '../services/music_library_service.dart';
 import '../services/music_metadata_csv.dart';
 import '../services/music_metadata_enricher.dart';
+import 'remaining_time_text.dart';
 import 'subpage_app_bar.dart';
 import 'track_metadata_page.dart';
 
@@ -35,6 +36,10 @@ class _MusicMetadataScanPageState extends State<MusicMetadataScanPage> {
   bool _scanning = false;
   final List<Track> _results = [];
 
+  /// Tracks the library had before this scan: about how many it will find,
+  /// for the "hh:mm:ss remaining" line (none on a first scan).
+  int _expected = 0;
+
   @override
   void initState() {
     super.initState();
@@ -55,6 +60,7 @@ class _MusicMetadataScanPageState extends State<MusicMetadataScanPage> {
   }
 
   Future<void> _runScan() async {
+    _expected = MusicLibraryService.instance.tracks.value.length;
     await MusicLibraryService.instance.ensureFolderPermission();
     await MusicLibraryService.instance.rescan(
       onTrackScanned: (scanned, track) {
@@ -163,12 +169,24 @@ class _MusicMetadataScanPageState extends State<MusicMetadataScanPage> {
           if (_scanning) const LinearProgressIndicator(),
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Text(
-              _scanning
-                  ? 'Scanning… ${_results.length} track(s) found so far'
-                  : '${_results.length} track(s) — $withGenre with genre, '
-                      '$withYear with year',
-              style: Theme.of(context).textTheme.titleSmall,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _scanning
+                      ? 'Scanning… ${_results.length} track(s) found so far'
+                      : '${_results.length} track(s) — $withGenre with genre, '
+                          '$withYear with year',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                RemainingTimeText(
+                  active: _scanning,
+                  // Never "done" before the scan says so: it may find more.
+                  done: _expected > 0
+                      ? (_results.length / _expected).clamp(0.0, 0.99)
+                      : null,
+                ),
+              ],
             ),
           ),
           // The background online lookup / BPM detection's progress, and
@@ -182,12 +200,18 @@ class _MusicMetadataScanPageState extends State<MusicMetadataScanPage> {
                   const Icon(Icons.auto_awesome, size: 16),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                        status.isEmpty
-                            ? 'Missing song info is looked up online in the '
-                                'background.'
-                            : status,
-                        style: Theme.of(context).textTheme.bodySmall),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                            status.isEmpty
+                                ? 'Missing song info is looked up online in '
+                                    'the background.'
+                                : status,
+                            style: Theme.of(context).textTheme.bodySmall),
+                        const EnrichmentRemainingText(),
+                      ],
+                    ),
                   ),
                   TextButton.icon(
                     icon: const Icon(Icons.travel_explore, size: 18),

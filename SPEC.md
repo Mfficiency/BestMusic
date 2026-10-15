@@ -1487,6 +1487,22 @@ fraction: `YoutubeFeedService.refreshProgress` = channels fetched / total), a fe
 description, channel search/import, the library search's YouTube lookup and the MP3
 Downloader's search.
 
+**Time left (Best Music 0.3.37).** Anything that can take more than 30 seconds shows a
+rough "hh:mm:ss remaining" line below its progress: `RemainingTimeText`
+(`lib/ui/remaining_time_text.dart`) on top of the shared package's `RemainingTime`
+(`mfficiency_updates`): nothing unless the whole job looks longer than 30 s (time so far +
+time left), nothing in the first 3 s, extrapolated from a 0..1 `done` (or counting down a
+`typical` duration), refreshed every second, hidden instead of 00:00:00; `startedAt` for
+work that began before the widget (a download, a feed refresh). `EstimatedProgressBar`
+shows it below the bar with `showRemaining`. Covered: MP3 downloads (MP3 Downloader card
+and Downloads page; `Mp3DownloadJob.startedAt`, from received/total bytes), the library
+scan on Metadata Scan (tracks found / tracks the library had before; nothing on a first
+scan), the song-info lookup and BPM detection passes (Metadata Scan, Songs by BPM,
+notification), the feed refresh (`YoutubeFeedService.refreshStartedAt`, channels fetched /
+total) and channel imports (NewPipe file, channel names; `onProgress`). Short loads
+(searches, a video's description, transcripts, track buffering, local pages) have none.
+App updates show it through the package.
+
 **Settings** (Best Music 0.3.3: no separate page any more — two sections of Best Music's own
 Settings, `MusicSettingsPage`; the feed's tune icon "Feed settings" opens it with
 `initialSection: MusicSettingsSection.feed`, i.e. that section open and scrolled to):
@@ -1604,9 +1620,10 @@ edits and CSV imports always win and a rescan simply gets the cache re-applied. 
 enricher's `status` line ("Looking up song info online… 3/40", "Detecting BPM on device…",
 "Song info filled in automatically — N of M complete, K with a BPM", "…paused (offline?)")
 shows under the Metadata Scan page's counts and on Songs by BPM while songs lack a BPM.
-Both passes append a time-left estimate once 3 songs are done (`_Eta`: average time per
-song so far × songs left; `formatTimeLeft` → "less than a minute left" / "about 12 min
-left" / "about 2 h 5 min left"). On Metadata Scan the row is always shown (idle text
+Both passes publish `progress` (`EnrichmentProgress` {startedAt, done 0..1 of the songs
+that needed work}; null between passes), shown as an "hh:mm:ss remaining" line below the
+status (`EnrichmentRemainingText`, see *Time left* below); the notification text gets the
+same " · 00:12:34 remaining". On Metadata Scan the row is always shown (idle text
 "Missing song info is looked up online in the background.") with a **Restart** button →
 `restartOnlineSearch()`: `resetCooldowns()`, cancels a pending retry, clears `onlineAt` on
 every entry whose track still misses a field (so no-match songs are asked again too),

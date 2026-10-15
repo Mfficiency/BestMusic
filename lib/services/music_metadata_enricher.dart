@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:mfficiency_updates/mfficiency_updates.dart' show RemainingTime;
 import 'package:path_provider/path_provider.dart';
 
 import '../models/track.dart';
@@ -156,6 +157,12 @@ class MusicMetadataEnricher {
   final Duration offlineRetry;
 
   final ValueNotifier<String> status = ValueNotifier<String>('');
+
+  /// How far the running online lookup / BPM detection pass is (null when
+  /// none runs): the "hh:mm:ss remaining" line below [status].
+  final ValueNotifier<EnrichmentProgress?> progress =
+      ValueNotifier<EnrichmentProgress?>(null);
+  _Eta? _eta;
   final Map<String, EnrichmentEntry> _entries = {};
   bool _loaded = false;
   bool _started = false;
@@ -182,7 +189,15 @@ class MusicMetadataEnricher {
   }
 
   void _onStatus() {
-    if (_backgroundActive) unawaited(_background.update(status.value));
+    if (!_backgroundActive) return;
+    final left = status.value.isEmpty ? null : _eta?.label;
+    unawaited(_background
+        .update(left == null ? status.value : '${status.value} · $left'));
+  }
+
+  void _endPass() {
+    _eta = null;
+    progress.value = null;
   }
 
   /// Puts up the foreground-service notification (Android) so the work
@@ -299,8 +314,10 @@ class MusicMetadataEnricher {
         _rerun = false;
         _restartRequested = false;
         paused = !await _onlinePass();
+        _endPass();
         if (paused || !_started || _restartRequested) continue;
         await _bpmPass();
+        _endPass();
         if (!_started || _restartRequested) continue;
         await _tagPass();
       } while ((_rerun || _restartRequested) && _started);
@@ -313,6 +330,7 @@ class MusicMetadataEnricher {
       debugPrint('MusicMetadataEnricher: $e\n$st');
       LogService.add('Music', 'enricher failed: $e');
     } finally {
+      _endPass();
       _running = false;
       if (!_started) _endBackground();
       if (!(_debounceTimer?.isActive ?? false)) {
@@ -330,7 +348,7 @@ class MusicMetadataEnricher {
     _beginBackground();
     LogService.add('Music', 'enricher: looking up ${todo.length} song(s) online');
     final pending = <String, OnlineTrackMetadata>{};
-    final eta = _Eta(todo.length);
+    final eta = _eta = _Eta(todo.length, progress);
     var found = 0;
     for (var i = 0; i < todo.length; i++) {
       if (!_started || _restartRequested) break;
@@ -341,7 +359,7 @@ class MusicMetadataEnricher {
         continue;
       }
       status.value =
-          'Looking up song info online… ${i + 1}/${todo.length}${eta.suffix}';
+          'Looking up song info online… ${i + 1}/${todo.length}';
       final OnlineTrackMetadata result;
       try {
         result = await _lookup.lookup(
@@ -416,7 +434,7 @@ class MusicMetadataEnricher {
     final todo = eligible.where(_needsDetection).toList();
     if (todo.isEmpty) return;
     _beginBackground();
-    final eta = _Eta(todo.length);
+    final eta = _eta = _Eta(todo.length, progress);
     LogService.add(
         'Music',
         'enricher: only $withBpm of ${eligible.length} songs have a BPM — '
@@ -431,7 +449,7 @@ class MusicMetadataEnricher {
         continue;
       }
       status.value =
-          'Detecting BPM on device… ${i + 1}/${todo.length}${eta.suffix}';
+          'Detecting BPM on device… ${i + 1}/${todo.length}';
       int? bpm;
       try {
         bpm = await _detectBpm(track);
@@ -614,37 +632,51 @@ class MusicMetadataEnricher {
     _rerun = false;
     _restartRequested = false;
     status.value = '';
+    _endPass();
   }
 }
 
-/// Time-left estimate for a pass: the average time per song so far times
-/// the songs still to go. Shown once a few songs are done, so one slow
-/// first request doesn't promise hours.
+/// How far an online-lookup or BPM pass is: [done] (0..1) of the songs
+/// it set out to do, since [startedAt].
+class EnrichmentProgress {
+  const EnrichmentProgress({required this.startedAt, required this.done});
+
+  final DateTime startedAt;
+  final double done;
+}
+
+/// Counts a pass's songs and publishes [EnrichmentProgress]; songs that
+/// turn out to need nothing are left out of the total.
 class _Eta {
-  _Eta(this._total);
+  _Eta(this._total, this._out) {
+    _publish();
+  }
 
   final int _total;
-  final Stopwatch _clock = Stopwatch()..start();
+  final ValueNotifier<EnrichmentProgress?> _out;
+  final DateTime _startedAt = DateTime.now();
+  final RemainingTime _time = RemainingTime()..start();
   int _done = 0;
   int _skipped = 0;
 
-  void done() => _done++;
-  void skip() => _skipped++;
-
-  String get suffix {
-    if (_done < 3) return '';
-    final left = _total - _done - _skipped;
-    if (left <= 0) return '';
-    final perSong = _clock.elapsedMilliseconds / _done;
-    return ' · ${formatTimeLeft(Duration(milliseconds: (perSong * left).round()))}';
+  void done() {
+    _done++;
+    _publish();
   }
-}
 
-/// "less than a minute left", "about 12 min left", "about 2 h 5 min left".
-String formatTimeLeft(Duration d) {
-  if (d.inSeconds < 60) return 'less than a minute left';
-  final minutes = (d.inSeconds / 60).ceil();
-  if (minutes < 90) return 'about $minutes min left';
-  final h = minutes ~/ 60, m = minutes % 60;
-  return m == 0 ? 'about $h h left' : 'about $h h $m min left';
+  void skip() {
+    _skipped++;
+    _publish();
+  }
+
+  double get fraction {
+    final todo = _total - _skipped;
+    return todo <= 0 ? 1 : (_done / todo).clamp(0.0, 1.0);
+  }
+
+  /// "00:12:34 remaining" once the pass has run 3 s, else null.
+  String? get label => _done == 0 ? null : _time.label(fraction);
+
+  void _publish() =>
+      _out.value = EnrichmentProgress(startedAt: _startedAt, done: fraction);
 }

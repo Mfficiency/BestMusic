@@ -51,6 +51,10 @@ class Mp3DownloadJob {
   final DateTime queuedAt;
   DateTime? finishedAt;
 
+  /// When this run began downloading (not saved): the start of the
+  /// "hh:mm:ss remaining" estimate.
+  DateTime? startedAt;
+
   /// `[0, 1]`, or null while the total size isn't known yet (which makes the
   /// UI show an indeterminate spinner rather than a misleading 0%).
   double? get progress =>
@@ -280,6 +284,7 @@ class Mp3DownloadManager {
 
   Future<void> _run(Mp3DownloadJob job) async {
     job.status = Mp3DownloadStatus.running;
+    job.startedAt = DateTime.now();
     _publish();
     final result = Mp3SearchResult(
       videoId: job.videoId,

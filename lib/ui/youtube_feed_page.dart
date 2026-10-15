@@ -595,6 +595,8 @@ class _YoutubeFeedPageState extends State<YoutubeFeedPage> {
                         value: _service.refreshProgress.value > 0
                             ? _service.refreshProgress.value
                             : null,
+                        showRemaining: true,
+                        startedAt: _service.refreshStartedAt,
                       ),
                       if (failed.isNotEmpty)
                         ListTile(

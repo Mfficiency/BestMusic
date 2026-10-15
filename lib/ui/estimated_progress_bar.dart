@@ -3,6 +3,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'remaining_time_text.dart';
+
 /// A thin progress bar for anything loading — a video, the feed, a search.
 ///
 /// With a known [value] (e.g. 3 of 12 channels fetched) it shows that.
@@ -10,6 +12,10 @@ import 'package:flutter/material.dart';
 /// shimmer: progress eases toward ~95% over roughly [expected]
 /// (`1 - e^(-t/τ)`), so it's never accurate but always visibly moving, and
 /// jumps to full once [active] turns false before disappearing.
+///
+/// With [showRemaining], a [RemainingTimeText] below it says roughly how
+/// long is left when the load looks longer than 30 s: from [value] when
+/// known, else counting down [typical].
 class EstimatedProgressBar extends StatefulWidget {
   const EstimatedProgressBar({
     super.key,
@@ -17,6 +23,9 @@ class EstimatedProgressBar extends StatefulWidget {
     this.value,
     this.expected = const Duration(seconds: 4),
     this.minHeight = 3,
+    this.showRemaining = false,
+    this.typical,
+    this.startedAt,
   });
 
   final bool active;
@@ -28,6 +37,15 @@ class EstimatedProgressBar extends StatefulWidget {
   final Duration expected;
 
   final double minHeight;
+
+  /// Adds the "hh:mm:ss remaining" line below the bar.
+  final bool showRemaining;
+
+  /// For [showRemaining] without a [value]: how long it usually takes.
+  final Duration? typical;
+
+  /// For [showRemaining]: when the work began, if before this widget.
+  final DateTime? startedAt;
 
   @override
   State<EstimatedProgressBar> createState() => _EstimatedProgressBarState();
@@ -82,6 +100,25 @@ class _EstimatedProgressBarState extends State<EstimatedProgressBar>
 
   @override
   Widget build(BuildContext context) {
+    final bar = _bar();
+    if (!widget.showRemaining) return bar;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        bar,
+        RemainingTimeText(
+          active: widget.active,
+          done: widget.value,
+          typical: widget.typical,
+          startedAt: widget.startedAt,
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _bar() {
     if (!widget.active && !_finishing) {
       return SizedBox(height: widget.minHeight);
     }

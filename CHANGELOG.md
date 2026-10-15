@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.37] - 2026-10-15
+- Long tasks show roughly how much time is left (hh:mm:ss remaining) below their progress once they look like they take more than 30 seconds: MP3 downloads, the library scan, looking up song info and detecting BPM, refreshing the Subscriptions feed and importing channels; app updates too
+
 ## [0.3.36] - 2026-10-14
 - Changelog: the version card shows the version and channel on top, then Downloaded, Installed and Last check with their dates lined up in one column; no icon and no pull-down hint
 

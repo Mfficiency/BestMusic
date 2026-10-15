@@ -10,6 +10,7 @@ import '../services/music_metadata_enricher.dart';
 import '../services/music_player_service.dart';
 import '../services/speaker_play_guard.dart';
 import '../services/music_playlist_service.dart';
+import 'remaining_time_text.dart';
 import 'subpage_app_bar.dart';
 
 /// The library songs whose BPM lies within [min]..[max], slowest first
@@ -227,9 +228,15 @@ class _BpmRangePageState extends State<BpmRangePage> {
                     ? const SizedBox.shrink()
                     : Padding(
                         padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-                        child: Text(status,
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.bodySmall),
+                        child: Column(
+                          children: [
+                            Text(status,
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.bodySmall),
+                            const EnrichmentRemainingText(
+                                textAlign: TextAlign.center),
+                          ],
+                        ),
                       ),
               ),
               const Divider(),

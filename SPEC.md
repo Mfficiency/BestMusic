@@ -587,9 +587,12 @@ like OneDrive.
   `POST /api/music/delete` `{"id", "path"}` → 200, and `POST /api/music/move`
   `{"id", "path", "to"}` → 200 `{"path": <new path>}`; `path`/`to` as Navidrome reports them
   without a leading slash, `id` the Subsonic song id. On success the catalog and library are
-  updated right away (the Pi's next scan confirms). **These two endpoints still have to be added
-  to `mirror-music-upload` in the MagicMirror repo**; until then the Pi answers 404 and the app
-  says the server needs an update.
+  updated right away (the Pi's next scan confirms). The Pi side is `music-upload-server.py` in
+  the MagicMirror repo (2026-10-15): deletes go to its 30-day music trash (`mirrorctl music trash
+  restore`), moves never overwrite (409), and a path that isn't found falls back to the song id
+  via `getSong`. A Pi without them answers 404 and the app says the server needs an update.
+  Navidrome there has no file watcher, so a moved server song streams again only after its next
+  scan (night, or Scan server) — the move snackbar says so.
 - **Search** (0.3.40, `LibrarySearchResults`): library matches (synced server songs among them)
   plus, with a server set up, the server's own `search3` for the query (400 ms after typing
   stops) — songs the library doesn't have yet and that aren't on the phone. Server songs show a
@@ -799,6 +802,13 @@ empty. Both cap at `smartPlaylistLimit` (50) tracks. `MusicPlaylistService.resol
 is the one place that turns any `MusicPlaylist` (whatever its `kind`) into an actual `List<Track>`
 — `MusicPlaylistDetailPage`/the Playlists tab's track-count subtitle both go through it instead of
 reading `trackIds` directly, so they work uniformly across stored and computed playlists.
+
+**Playlists tab order** — hand-made playlists (Favorites/"Don't really like", hand-built, M3U
+imports, rule playlists, in stored order) come first, then the New playlist / New rule playlist /
+Songs by BPM rows, then "Last Added" and the overall "Most Played". The per-genre "Most Played"
+lists sit in a collapsed "Most played by genre" `ExpansionTile` (subtitle "N genres", each entry
+titled by its genre alone; the detail page keeps the full "Most Played: <genre>" name). The group
+is omitted when no track has a genre.
 
 **Rule-based ("smart" in the iTunes/Plex sense) playlists** — `lib/models/playlist_rule.dart`:
 `RuleCondition` (a `RuleField` — title/artist/album/genre/year — a `RuleOperator`, and a
@@ -1997,7 +2007,57 @@ rewritten only when they change; `load` takes the login from there whenever `set
 has no server address. A failed "Connect" in the Server tab now puts the previous login back
 instead of clearing just the user name. Tests: `test/music/config_persistence_test.dart`.
 
-### 10.6s Build facts per version in the Changelog (Best Music 0.3.41)
+### 10.6s Best Music Organizer on the computer (organizer/, 2026-10-15)
+
+A separate tool, not part of the app: `organizer/` is a Python web app run on the computer
+(`organizer/Music-Organizer.cmd` on Windows, `python organizer/organizer.py`), serving a page on
+127.0.0.1:8770. The idea is to organize the music where it's fast (the computer) and sync the
+result to the music server Pi, which the app streams from. Full guide: `organizer/README.md`.
+
+- **Library** (`mo/library.py`): an SQLite index (`organizer/local/library.sqlite`) of every audio
+  file under Settings → Music folder, re-read only when size or mtime changes. Tags are read and
+  written with mutagen's easy interface (title, artist, album, albumartist, genre, date,
+  tracknumber). Moves never overwrite (`name (2).mp3`), and folders left empty are removed.
+  Deletes go to `organizer/local/trash/<day>/`. Every move and delete goes into a journal
+  (table `ops`), which the sync replays on the Pi.
+- **Playlists** are `.m3u8` files in `<music>/Playlists/`, with relative paths. They sync like
+  songs, and Navidrome imports them at its scan (`AutoImportPlaylists = true` in the
+  MagicMirror repo's navidrome.toml). A moved song's entry follows it, and a deleted song's
+  entry is dropped.
+- **Names** (`mo/names.py`): `clean_title`/`clean_artist` port `track_title.dart`'s
+  junk-annotation rule and add track-number, underscore, ALL-CAPS and "feat." clean-up.
+  `song_key` (accent/case/punctuation/feat-insensitive artist|title) drives duplicates and the
+  "already have" mark. `format_pattern` builds paths from `{artist}/{title}`-style patterns with
+  Windows-safe parts.
+- **Get music** (`mo/sources.py`, `mo/downloader.py`):
+  - **Lists:** pasted lists, YouTube search (yt-dlp flat search), Deezer's public API for an
+    artist's top songs and a country's "Top <country>" chart playlist by "Deezer Charts" (local
+    names like "Top Belgique" accepted), and a free prompt answered by Claude.
+  - **Claude:** `claude-opus-5-5` with the `web_search_20260209` server tool and a strict
+    `submit_songs` tool for the result. It handles `pause_turn`, has `fallbacks: "default"`
+    under `server-side-fallback-2026-07-01`, and checks for refusals.
+  - **Downloads:** the downloader takes `ytsearch1:<artist> - <title> audio` (or the given
+    link), converts with ffmpeg (mp3 VBR 0, or m4a without re-encoding), tags with the list's
+    artist/title, files by pattern and can append to a playlist.
+- **Sync** (`mo/pisync.py`), over `ssh <piHost>` (BatchMode, key only):
+  - **Remote script:** a small standard-library Python script, base64-wrapped, lists the Pi's
+    music folder (`mirror.json` `music.folder`) and applies the journal. Moves happen only when
+    the source is there and the target isn't; if the target already has the same size, the
+    source goes to the trash. Deletes go to `music.trashFolder/<day>/`, the same layout as the
+    nightly clean-up.
+  - **What gets copied:** files new here, or with a different size, or newer here by more
+    than 2 s, are copied as a tar stream (`tar -xf - --no-same-owner`, umask 002, mtimes
+    kept).
+  - **Pi-only files:** they can be pulled (`tar -cf - --null -T -`, extracted safely) or sent
+    to the trash, chosen per top folder.
+  - **Scan:** optional `sudo -n mirrorctl music scan`.
+- **Not yet:** the app doesn't list the server's playlists (Navidrome has them after its scan;
+  the Server tab shows folders only).
+- Tests: `python -m unittest discover -s organizer/tests` (real MP3s made with ffmpeg, a
+  folder standing in for the Pi, and a stand-in `ssh` that runs the real SSH code path
+  locally).
+
+### 10.6t Build facts per version in the Changelog (Best Music 0.3.43)
 
 Each release card on the Changelog page (`lib/ui/changelog_page.dart`) ends with small chips
 saying when that version was built, how long the build took and how big its APK is ("Built

@@ -126,6 +126,47 @@ void main() {
     expect(find.text("Don't really like"), findsOneWidget);
   });
 
+  testWidgets(
+      'Playlists tab puts hand-made playlists first and folds per-genre '
+      'Most Played lists into a collapsible group', (tester) async {
+    Config.musicFolder = '/does/not/matter/for/this/test';
+    MusicLibraryService.instance.tracks.value = [
+      Track.local(
+          filePath: '/does/not/matter/a.mp3', title: 'A', genre: 'Rock'),
+      Track.local(filePath: '/does/not/matter/b.mp3', title: 'B', genre: 'Pop'),
+    ];
+    MusicPlaylistService.instance.playlists.value = [
+      MusicPlaylist.favorites(),
+      MusicPlaylist.disliked(),
+      MusicPlaylist(id: 'p1', name: 'Road trip'),
+    ];
+
+    await tester.pumpWidget(const MaterialApp(home: MusicPlayerPage()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Playlists'));
+    await tester.pumpAndSettle();
+
+    double top(String text) => tester.getTopLeft(find.text(text)).dy;
+    expect(top('Road trip'), lessThan(top('New playlist')));
+    expect(top('Favorites'), lessThan(top('Last Added')));
+    expect(top('Road trip'), lessThan(top('Most Played')));
+
+    // Collapsed by default: the per-genre lists only show once expanded.
+    await tester.dragUntilVisible(find.text('Most played by genre'),
+        find.byType(ListView).last, const Offset(0, -200));
+    await tester.pumpAndSettle();
+    expect(find.text('Most played by genre'), findsOneWidget);
+    expect(find.text('2 genres'), findsOneWidget);
+    expect(find.text('Rock'), findsNothing);
+    await tester.tap(find.text('Most played by genre'));
+    await tester.pumpAndSettle();
+    await tester.dragUntilVisible(find.text('Rock'),
+        find.byType(ListView).last, const Offset(0, -200));
+    await tester.pumpAndSettle();
+    expect(find.text('Pop'), findsOneWidget);
+    expect(find.text('Rock'), findsOneWidget);
+  });
+
   // `standalone: true` is what lib/main.dart's Best Music app passes —
   // it is the app's root/home page, so it gets a real Drawer (like
   // BestToDo's own home page) instead of buildSubpageAppBar's
@@ -325,7 +366,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Playlists'));
       await tester.pumpAndSettle();
-      // Below the New/Rule/Songs by BPM rows and the smart playlists.
+      // Hand-made playlists are listed first, but scroll just in case.
       await tester.dragUntilVisible(find.text('Road trip'),
           find.byType(ListView).last, const Offset(0, -200));
       await tester.pumpAndSettle();
@@ -390,7 +431,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Playlists'));
       await tester.pumpAndSettle();
-      // Below the New/Rule/Songs by BPM rows and the smart playlists.
+      // Hand-made playlists are listed first, but scroll just in case.
       await tester.dragUntilVisible(find.text('Road trip'),
           find.byType(ListView).last, const Offset(0, -200));
       await tester.pumpAndSettle();

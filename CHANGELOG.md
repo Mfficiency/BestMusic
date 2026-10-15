@@ -5,8 +5,14 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
-## [0.3.41] - 2026-10-15
+## [0.3.43] - 2026-10-15
 - Changelog: each version now shows when it was built, how long the build took and the size of its APK (from the version's GitHub release; versions without that info keep their own build notes). Updates package 1.5.0.
+
+## [0.3.42] - 2026-10-15
+- Playlists: your own playlists (Favorites, the ones you made or imported, rule playlists) are now at the top. The "Most Played" list for each genre is tucked into a "Most played by genre" folder you can tap open, so it no longer pushes everything else down.
+
+## [0.3.41] - 2026-10-15
+- Moving and deleting songs on the music server now works (the MagicMirror Pi got the update). Deleted server songs go to the Pi's trash for 30 days, so they can still be brought back. A moved server song plays again after the server's next scan (tonight, or tap Scan server).
 
 ## [0.3.40] - 2026-10-15
 - Songs: the ⋮ menu has 'Move to folder' (pick a folder or make a new one) and 'Delete' (asks first), for songs on your phone and on the music server; playlists and favourites follow the song. Moving or deleting server songs needs an update of the upload service on the Pi.

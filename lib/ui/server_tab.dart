@@ -14,6 +14,7 @@ import '../services/speaker_play_guard.dart';
 import '../services/subsonic_client.dart';
 import '../services/subsonic_library_sync.dart';
 import '../services/task_progress.dart';
+import 'now_playing_highlight.dart';
 import 'now_playing_page.dart';
 import 'remaining_time_text.dart';
 import 'subpage_app_bar.dart';
@@ -142,8 +143,11 @@ class ServerFolderView extends StatelessWidget {
   Widget _songTile(BuildContext context, List<Track> songs, int index) {
     final song = songs[index];
     final offline = ServerOfflineStore.instance;
-    return ListTile(
-      leading: const Icon(Icons.music_note_outlined),
+    return NowPlayingHighlight(
+      trackId: song.id,
+      builder: (context, isCurrent) => ListTile(
+      selected: isCurrent,
+      leading: isCurrent ? nowPlayingIcon : const Icon(Icons.music_note_outlined),
       title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis),
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -159,6 +163,7 @@ class ServerFolderView extends StatelessWidget {
         await MusicPlayerService.playQueue(songs, startIndex: index);
         if (context.mounted) Navigator.of(context).push(NowPlayingPage.route());
       },
+    ),
     );
   }
 }

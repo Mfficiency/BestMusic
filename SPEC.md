@@ -1840,7 +1840,8 @@ contents>}}`. `stores` carries the documents-dir files listed in
 `youtube_feed.json` (subscriptions, feed videos, feed settings incl.
 SponsorBlock, watch progress), `mp3_downloads.json`, `music_enrichment.json`
 and `music_resume.json` (the playback resume point; read once at startup, so a
-restored one applies on the next launch, Best Music 0.3.30) — read straight
+restored one applies on the next launch, Best Music 0.3.30), `play_history.json`
+(Play history, Best Music 0.3.43) — read straight
 from disk so a backup is complete without any page loaded. The library entries
 carry the analyzed metadata (BPM, genre, year, …), play counts and manual
 edits; `music_enrichment.json` the online/on-device lookup results; the feed
@@ -2006,3 +2007,49 @@ address, user name and password are also kept in `music_server.json` (same SafeF
 rewritten only when they change; `load` takes the login from there whenever `settings.json`
 has no server address. A failed "Connect" in the Server tab now puts the previous login back
 instead of clearing just the user name. Tests: `test/music/config_persistence_test.dart`.
+
+### 10.6s Now-playing highlight, Play history, listening counters (Best Music 0.3.43)
+
+**Now-playing highlight** — `NowPlaying.trackId` (`lib/services/now_playing.dart`, a static
+`ValueNotifier<String?>`) holds the id of the track the player holds, playing or paused;
+`MusicAudioHandler` sets it in `restore` and `_playCurrent`. `NowPlayingHighlight`
+(`lib/ui/now_playing_highlight.dart`) rebuilds a row when it changes and gives `ListTile`s the
+`primaryContainer` selected colours, so rows pass `selected: isCurrent` and swap their leading
+icon for `nowPlayingIcon` (`Icons.graphic_eq`). Used by every song row (`TrackListView`: Tracks,
+Favourites, playlists, artist/tag/folder drill-ins, search), the Queue (which now follows the
+player as songs change), Songs by BPM, Server folder songs, YouTube search results, Play history,
+and `FeedVideoTile` (tinted background + a "Now playing" line; never dimmed as played while
+playing). Feed videos and YouTube songs match on `youtube:<videoId>`.
+
+**Play history** — `PlayHistoryService` (`lib/services/play_history_service.dart`,
+`play_history.json`, loaded at startup, in backups) keeps a `PlayHistoryEntry` (id, trackId,
+title, artist, isVideo, playedAt) for every song or Subscriptions video whose audio loaded
+(`_playCurrent`, after `setAudioSource` succeeds — unplayable tracks aren't logged). Title and
+artist are copied at play time. Starting the same track again within `repeatWindow` (30 min:
+resuming after a pause, restart or "Back to music") adds nothing. Entries older than `retention`
+(90 days) are dropped on load and on every new entry. `delete(id)`, `deleteDay(date)`, `clear()`.
+Page: drawer → Tools → Play history (`lib/ui/play_history_page.dart`) — newest first, a month
+header ("October 2026"), a day header ("Today"/"Yesterday"/"Thursday 15 October", "N played",
+"Delete this day"), then rows "HH:mm · [Video ·] artist" with "Delete from history"; app bar
+"Clear history" (asks first).
+
+**Listening counters** — `Track` gained `skipCount`, `upSwipeCount`, `downSwipeCount` next to
+`playCount` (JSON keys of the same names, omitted at 0; kept by rescans and server syncs via
+`Track.withCountersOf`, by manual edits and CSV imports). Counted by `MusicAudioHandler`:
+play = played to the end (unchanged); skip = `skipToNext` (Next on Now Playing, notification,
+headset) while the track plays; swipe up = `swipeUpCurrent` (Now Playing swipe up — now always
+adds to Favorites instead of toggling it off when already there; the heart button still
+toggles and isn't counted); swipe down = `dislikeCurrentAndSkip` (swipe down or thumbs-down),
+which moves on without also counting a skip. The Track info page shows Plays, Skipped, Swiped
+up, Swiped down and the Shuffle weight. `isFavorite`/`isDisliked` return false (instead of
+crashing) before the playlists are loaded.
+
+**Shuffle** — `weightedShuffle` weighs each track by `weightFor(track)` = `weightOf(id)`
+(Favorites 3, "Don't really like" 0.05, else 1) × `listeningFactor(track)` =
+`sqrt((plays + 2·ups + 2) / (skips + 3·downs + 2))` clamped to 0.25–4: 1.0 with no history,
+~2.9 for 100 plays/10 skips, ~0.53 for 5 skips and nothing else. A ratio, so a much-played song
+skipped now and then stays high. Applies to every shuffle (Shuffle all, a list's shuffle
+button, the end-of-queue reshuffle, the switch from videos back to music).
+Tests: `test/music/play_history_service_test.dart`, `test/music/play_history_page_test.dart`,
+`music_playlist_service_test.dart` (factor/weight/ordering), `music_audio_handler_test.dart`,
+`music_player_page_test.dart`, `youtube_feed_page_test.dart`, `track_metadata_page_test.dart`.

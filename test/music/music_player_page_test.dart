@@ -6,6 +6,7 @@ import 'package:best_music/models/music_playlist.dart';
 import 'package:best_music/models/track.dart';
 import 'package:best_music/services/music_library_service.dart';
 import 'package:best_music/services/music_playlist_service.dart';
+import 'package:best_music/services/now_playing.dart';
 import 'package:best_music/ui/music_player_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -39,6 +40,7 @@ void main() {
   });
 
   tearDown(() async {
+    NowPlaying.trackId.value = null;
     Config.musicFolder = '';
     Config.musicExcludedSubfolders = [];
     Config.mp3DownloadFolder = '';
@@ -230,6 +232,7 @@ void main() {
         'Songs by BPM',
         'MP3 Downloader',
         'Wishlist',
+        'Play history',
       ]) {
         expect(
             find.descendant(
@@ -454,6 +457,36 @@ void main() {
       expect(MusicPlaylistService.instance.byId('p1')!.trackIds,
           containsAll([song1.id, song2.id]));
     });
+  });
+
+  testWidgets('the playing song is highlighted in the track list and the '
+      'highlight follows the player', (tester) async {
+    Config.musicFolder = '/does/not/matter/for/this/test';
+    final a = Track.local(filePath: '/does/not/matter/a.mp3', title: 'Song A');
+    final b = Track.local(filePath: '/does/not/matter/b.mp3', title: 'Song B');
+    MusicLibraryService.instance.tracks.value = [a, b];
+    NowPlaying.trackId.value = a.id;
+
+    await tester.pumpWidget(const MaterialApp(home: MusicPlayerPage()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tracks'));
+    await tester.pumpAndSettle();
+
+    ListTile tileOf(String title) => tester.widget<ListTile>(find.ancestor(
+        of: find.text(title), matching: find.byType(ListTile)));
+    expect(tileOf('Song A').selected, isTrue);
+    expect(tileOf('Song B').selected, isFalse);
+    expect(
+        find.descendant(
+            of: find.ancestor(
+                of: find.text('Song A'), matching: find.byType(ListTile)),
+            matching: find.byIcon(Icons.graphic_eq)),
+        findsOneWidget);
+
+    NowPlaying.trackId.value = b.id;
+    await tester.pump();
+    expect(tileOf('Song A').selected, isFalse);
+    expect(tileOf('Song B').selected, isTrue);
   });
 
   group('Favourites/Artists/Tags/Folders tabs', () {

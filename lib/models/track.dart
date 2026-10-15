@@ -85,6 +85,17 @@ class Track {
   /// manual skip.
   final int playCount;
 
+  /// How many times Next was pressed while this track was playing (not a
+  /// swipe-down, which counts in [downSwipeCount] instead).
+  final int skipCount;
+
+  /// How many times Now Playing was swiped up (favorite) on this track.
+  final int upSwipeCount;
+
+  /// How many times Now Playing was swiped down ("don't really like") on
+  /// this track, or its thumbs-down button pressed.
+  final int downSwipeCount;
+
   /// True once title/artist/album/genre/year were set by hand (the Track
   /// info page's "fill in missing metadata"), rather than read from the
   /// file's tags. A later [MusicLibraryService.rescan] keeps those fields
@@ -119,6 +130,9 @@ class Track {
     this.dateAdded,
     this.deviceDate,
     this.playCount = 0,
+    this.skipCount = 0,
+    this.upSwipeCount = 0,
+    this.downSwipeCount = 0,
     this.metadataEdited = false,
     this.tags = const [],
   });
@@ -220,8 +234,8 @@ class Track {
   }
 
   /// Returns a copy with the given fields replaced. Used to update
-  /// per-scan metadata while preserving [dateAdded]/[playCount] across a
-  /// rescan, and to bump [playCount] on playback.
+  /// per-scan metadata while preserving [dateAdded]/[playCount] (and the
+  /// other listening counters) across a rescan, and to bump them.
   Track copyWith({
     String? title,
     String? artist,
@@ -233,6 +247,9 @@ class Track {
     DateTime? dateAdded,
     DateTime? deviceDate,
     int? playCount,
+    int? skipCount,
+    int? upSwipeCount,
+    int? downSwipeCount,
     bool? metadataEdited,
     List<String>? tags,
   }) {
@@ -255,6 +272,9 @@ class Track {
       dateAdded: dateAdded ?? this.dateAdded,
       deviceDate: deviceDate ?? this.deviceDate,
       playCount: playCount ?? this.playCount,
+      skipCount: skipCount ?? this.skipCount,
+      upSwipeCount: upSwipeCount ?? this.upSwipeCount,
+      downSwipeCount: downSwipeCount ?? this.downSwipeCount,
       metadataEdited: metadataEdited ?? this.metadataEdited,
       tags: tags ?? this.tags,
     );
@@ -280,6 +300,9 @@ class Track {
         if (deviceDate != null)
           'deviceDate': deviceDate!.millisecondsSinceEpoch,
         if (playCount != 0) 'playCount': playCount,
+        if (skipCount != 0) 'skipCount': skipCount,
+        if (upSwipeCount != 0) 'upSwipeCount': upSwipeCount,
+        if (downSwipeCount != 0) 'downSwipeCount': downSwipeCount,
         if (metadataEdited) 'metadataEdited': metadataEdited,
         if (tags.isNotEmpty) 'tags': tags,
       };
@@ -315,11 +338,25 @@ class Track {
           ? DateTime.fromMillisecondsSinceEpoch(deviceDateMs.round())
           : null,
       playCount: (json['playCount'] as num?)?.round() ?? 0,
+      skipCount: (json['skipCount'] as num?)?.round() ?? 0,
+      upSwipeCount: (json['upSwipeCount'] as num?)?.round() ?? 0,
+      downSwipeCount: (json['downSwipeCount'] as num?)?.round() ?? 0,
       metadataEdited: json['metadataEdited'] as bool? ?? false,
       tags: (json['tags'] as List?)?.map((e) => e.toString()).toList() ??
           const [],
     );
   }
+
+  /// Returns a copy carrying [other]'s listening counters — what a rescan
+  /// or server sync keeps from the previous copy of the same track.
+  Track withCountersOf(Track? other) => other == null
+      ? this
+      : copyWith(
+          playCount: other.playCount,
+          skipCount: other.skipCount,
+          upSwipeCount: other.upSwipeCount,
+          downSwipeCount: other.downSwipeCount,
+        );
 
   @override
   bool operator ==(Object other) => other is Track && other.id == id;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/track.dart';
 import '../services/music_library_service.dart';
+import '../services/music_playlist_service.dart';
 import 'subpage_app_bar.dart';
 
 /// Shows (and lets you fill in) one track's metadata — title/artist/album/
@@ -166,7 +167,24 @@ class _TrackMetadataPageState extends State<TrackMetadataPage> {
                     ],
                     const Divider(height: 32),
                     _infoRow('Duration', _formatDuration(track.durationMs)),
-                    _infoRow('Play count', '${track.playCount}'),
+                    _infoRow('Plays', '${track.playCount}'),
+                    _infoRow('Skipped', '${track.skipCount}'),
+                    _infoRow('Swiped up', '${track.upSwipeCount}'),
+                    _infoRow('Swiped down', '${track.downSwipeCount}'),
+                    _infoRow(
+                      'Shuffle weight',
+                      '×${MusicPlaylistService.instance.weightFor(track).toStringAsFixed(2)}',
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        'Shuffle puts songs with a higher weight earlier: '
+                        'Favorites ×3, "Don\'t really like" ×0.05, times '
+                        'what you did with the song — plays and swipes up '
+                        'raise it, skips and swipes down lower it.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
                     _infoRow(
                       'Added to device',
                       track.deviceDate == null

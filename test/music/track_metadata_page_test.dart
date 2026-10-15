@@ -93,6 +93,32 @@ void main() {
     expect(find.text('2026-09-18'), findsOneWidget);
   });
 
+  testWidgets('shows plays, skips, swipes up/down and the shuffle weight',
+      (tester) async {
+    final track = Track.local(filePath: '/music/c.mp3', title: 'Counted')
+        .copyWith(
+            playCount: 12, skipCount: 7, upSwipeCount: 5, downSwipeCount: 4);
+    MusicLibraryService.instance.tracks.value = [track];
+
+    await pushPage(tester, track.id);
+    await tester.dragUntilVisible(find.text('Shuffle weight'),
+        find.byType(Scrollable).first, const Offset(0, -200));
+
+    for (final (label, value) in [
+      ('Plays', '12'),
+      ('Skipped', '7'),
+      ('Swiped up', '5'),
+      ('Swiped down', '4'),
+    ]) {
+      final row = find.ancestor(of: find.text(label), matching: find.byType(Row));
+      expect(find.descendant(of: row.first, matching: find.text(value)),
+          findsOneWidget,
+          reason: label);
+    }
+    // sqrt((12 + 2·5 + 2) / (7 + 3·4 + 2)) = sqrt(24/21) ≈ 1.07
+    expect(find.text('×1.07'), findsOneWidget);
+  });
+
   testWidgets('shows "Track not found" for an unknown id', (tester) async {
     await pushPage(tester, 'local:/nope.mp3');
 

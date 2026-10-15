@@ -9,7 +9,9 @@ import '../models/track.dart';
 import '../models/youtube_feed.dart';
 import 'media_volume.dart';
 import 'music_library_service.dart';
+import 'now_playing.dart';
 import 'music_playlist_service.dart';
+import 'play_history_service.dart';
 import 'music_resume_service.dart';
 import 'music_sleep_timer.dart';
 import 'sponsorblock_service.dart';
@@ -474,6 +476,7 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
     _resumePosition = position;
     queue.add(_queue.map(_toMediaItem).toList());
     mediaItem.add(_toMediaItem(currentTrack!));
+    NowPlaying.trackId.value = currentTrack!.id;
     playbackState.add(playbackState.value.copyWith(
       controls: notificationControls(false),
       androidCompactActionIndices: _compactIndices(),
@@ -509,6 +512,7 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
     final track = currentTrack;
     if (track == null) return;
     mediaItem.add(_toMediaItem(track));
+    NowPlaying.trackId.value = track.id;
     var startAt = _resumePosition;
     _resumePosition = null;
     // A feed video picks up where it was left (podcasts, long mixes).
@@ -524,6 +528,7 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
       await _player.setAudioSource(source, initialPosition: startAt);
       _sourceLoaded = true;
       _loadedTrackId = track.id;
+      unawaited(PlayHistoryService.instance.record(track));
       await _applySpeed(track);
       await _applyVolume(track);
       // Keep a full copy of a video you start, so stopping halfway and
@@ -643,8 +648,16 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
     await _player.seek(target);
   }
 
+  /// Next (Now Playing, notification, headset): counts as a skip of the
+  /// track being left — the end of a song advances via [_advance] instead.
   @override
-  Future<void> skipToNext() => _advance(1, wrapWithReshuffle: true);
+  Future<void> skipToNext() async {
+    final leaving = currentTrack;
+    if (leaving != null) {
+      unawaited(MusicLibraryService.instance.incrementSkipCount(leaving.id));
+    }
+    await _advance(1, wrapWithReshuffle: true);
+  }
 
   @override
   Future<void> skipToPrevious() => _advance(-1, wrapWithReshuffle: false);
@@ -730,13 +743,26 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
     await MusicPlaylistService.instance.toggleFavorite(track.id);
   }
 
-  /// Swipe-down on Now Playing: marks the current track disliked (so it
-  /// comes up far less in future shuffles) and skips it right away.
+  /// Swipe-up on Now Playing: counts a swipe up and makes sure the track
+  /// is in Favorites (never takes it out, unlike the heart button).
+  Future<void> swipeUpCurrent() async {
+    final track = currentTrack;
+    if (track == null) return;
+    unawaited(MusicLibraryService.instance.incrementUpSwipeCount(track.id));
+    if (!MusicPlaylistService.instance.isFavorite(track.id)) {
+      await MusicPlaylistService.instance.toggleFavorite(track.id);
+    }
+  }
+
+  /// Swipe-down (or thumbs-down) on Now Playing: counts a swipe down,
+  /// marks the current track disliked (so it comes up far less in future
+  /// shuffles) and moves on right away — not counted as a plain skip too.
   Future<void> dislikeCurrentAndSkip() async {
     final track = currentTrack;
     if (track == null) return;
+    unawaited(MusicLibraryService.instance.incrementDownSwipeCount(track.id));
     await MusicPlaylistService.instance.markDisliked(track.id);
-    await skipToNext();
+    await _advance(1, wrapWithReshuffle: true);
   }
 
   @override

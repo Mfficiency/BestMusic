@@ -5,6 +5,12 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.43] - 2026-10-15
+- The song or video that's playing is now highlighted everywhere it's listed: your songs, playlists, the queue, Songs by BPM, server folders, search results and Subscriptions. The highlight moves along as the next song starts.
+- New: Tools → Play history. Every song and video you play, with the date and time, grouped by month and day. It's kept for 90 days, and you can delete single entries, a whole day, or everything.
+- A song's info page now shows how many times it was played, skipped, swiped up and swiped down. Shuffle uses all four: songs you play and swipe up come up earlier, songs you skip and swipe down come up later.
+- Swiping up on a song that's already a favourite no longer takes it out of Favourites.
+
 ## [0.3.42] - 2026-10-15
 - Playlists: your own playlists (Favorites, the ones you made or imported, rule playlists) are now at the top. The "Most Played" list for each genre is tucked into a "Most played by genre" folder you can tap open, so it no longer pushes everything else down.
 

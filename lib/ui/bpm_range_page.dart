@@ -10,6 +10,7 @@ import '../services/music_metadata_enricher.dart';
 import '../services/music_player_service.dart';
 import '../services/speaker_play_guard.dart';
 import '../services/music_playlist_service.dart';
+import 'now_playing_highlight.dart';
 import 'remaining_time_text.dart';
 import 'subpage_app_bar.dart';
 
@@ -254,8 +255,13 @@ class _BpmRangePageState extends State<BpmRangePage> {
                         itemCount: list.length,
                         itemBuilder: (context, i) {
                           final t = list[i];
-                          return ListTile(
-                            leading: const Icon(Icons.music_note),
+                          return NowPlayingHighlight(
+                            trackId: t.id,
+                            builder: (context, isCurrent) => ListTile(
+                            selected: isCurrent,
+                            leading: isCurrent
+                                ? nowPlayingIcon
+                                : const Icon(Icons.music_note),
                             title: Text(t.title,
                                 maxLines: 1, overflow: TextOverflow.ellipsis),
                             subtitle: t.artist.isEmpty
@@ -265,6 +271,7 @@ class _BpmRangePageState extends State<BpmRangePage> {
                                     overflow: TextOverflow.ellipsis),
                             trailing: Text('${t.bpm} BPM'),
                             onTap: () => _play(list, startIndex: i),
+                          ),
                           );
                         },
                       ),

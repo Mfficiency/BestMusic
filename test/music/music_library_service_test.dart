@@ -160,6 +160,23 @@ void main() {
       expect(second.single.playCount, 1);
     });
 
+    test('a rescan keeps skips and swipes up/down too', () async {
+      await writeFile('counted.mp3');
+      final first = await MusicLibraryService.instance.rescan();
+      final id = first.single.id;
+      final library = MusicLibraryService.instance;
+      await library.incrementSkipCount(id);
+      await library.incrementSkipCount(id);
+      await library.incrementUpSwipeCount(id);
+      await library.incrementDownSwipeCount(id);
+
+      final second = await library.rescan();
+
+      expect(second.single.skipCount, 2);
+      expect(second.single.upSwipeCount, 1);
+      expect(second.single.downSwipeCount, 1);
+    });
+
     test('results persist across a resetForTest + load()', () async {
       await writeFile('persisted.mp3');
       await MusicLibraryService.instance.rescan();

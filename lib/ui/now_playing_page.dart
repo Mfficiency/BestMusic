@@ -71,7 +71,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
     final velocity = details.primaryVelocity ?? 0;
     const threshold = 250.0;
     if (velocity < -threshold || _dragOffset < -80) {
-      MusicPlayerService.handler.favoriteCurrent();
+      MusicPlayerService.handler.swipeUpCurrent();
       _flash('Added to Favorites');
     } else if (velocity > threshold || _dragOffset > 80) {
       MusicPlayerService.handler.dislikeCurrentAndSkip();

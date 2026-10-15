@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.42] - 2026-10-15
+- Playlists: your own playlists (Favorites, the ones you made or imported, rule playlists) are now at the top. The "Most Played" list for each genre is tucked into a "Most played by genre" folder you can tap open, so it no longer pushes everything else down.
+
 ## [0.3.41] - 2026-10-15
 - Moving and deleting songs on the music server now works (the MagicMirror Pi got the update). Deleted server songs go to the Pi's trash for 30 days, so they can still be brought back. A moved server song plays again after the server's next scan (tonight, or tap Scan server).
 

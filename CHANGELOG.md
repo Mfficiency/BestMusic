@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.43] - 2026-10-15
+- Changelog: each version now shows when it was built, how long the build took and the size of its APK (from the version's GitHub release; versions without that info keep their own build notes). Updates package 1.5.0.
+
 ## [0.3.42] - 2026-10-15
 - Playlists: your own playlists (Favorites, the ones you made or imported, rule playlists) are now at the top. The "Most Played" list for each genre is tucked into a "Most played by genre" folder you can tap open, so it no longer pushes everything else down.
 

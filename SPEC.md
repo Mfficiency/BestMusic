@@ -2072,3 +2072,10 @@ Tests: `test/music/play_history_service_test.dart`, `test/music/play_history_pag
   kind or nothing before (`whenLoaded`): right after loading, as before.
   Tests: `test/music/music_resume_test.dart` (pill hidden next to the bar's button, volume
   order), `test/music/now_playing_page_test.dart` (Add to playlist).
+
+### 10.6u Next on the song bar (Best Music 0.3.45)
+
+`MusicMiniPlayerBar` gains a Next button after play/pause (and after forward 10 s for a video):
+`skip_next`, key `musicMiniPlayerNext`, labelled "Next" through `Semantics` like play/pause
+(the bar sits outside the navigator's Overlay). It calls `skipToNext`, so it counts as a skip
+of the track being left (§10.6s). Test: `test/music/music_resume_test.dart`.

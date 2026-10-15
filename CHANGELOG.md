@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.45] - 2026-10-15
+- The song bar at the bottom has a Next button, so you can skip to the next song or video from any screen.
+
 ## [0.3.44] - 2026-10-15
 - Now Playing: new "Add to playlist" button, so you can put the song that's playing in a playlist (or a new one) straight away.
 - The round "back to music / back to videos" button no longer floats above the song bar when the bar already has that button.

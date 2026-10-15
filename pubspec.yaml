@@ -4,7 +4,7 @@ publish_to: 'none'
 
 # x.y.z+build. Laptop channel builds (tool/build.ps1 release) override the
 # build number with BUILD_NUMBER; bump x.y.z with tool/bump_version.dart.
-version: 0.3.44+441
+version: 0.3.45+442
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

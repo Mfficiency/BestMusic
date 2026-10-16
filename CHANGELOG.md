@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.49] - 2026-10-16
+- Play history: tap a day to fold or unfold its songs; only the latest day starts open, so you see all your days at a glance. Each day also shows its short date, like "Fri 16.10.26".
+
 ## [0.3.48] - 2026-10-16
 - Play history: every entry has an info button. From there you can open the song's info (details, plays, skips and swipes), play it next, add it to the queue or to a playlist, or delete it from the history. Videos can be added to the video queue.
 

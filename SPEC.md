@@ -2179,3 +2179,12 @@ that "Back to music" resumes; with nothing loaded, the paused queue. Queue optio
 player to be ready. Tests: `test/music/play_history_page_test.dart`,
 `test/music/music_audio_handler_test.dart`.
 
+### 10.6y Play history days fold (Best Music 0.3.49)
+
+`PlayHistoryPage` is stateful: tapping a day header (chevron `expand_less`/`expand_more`) folds
+or unfolds that day's entries. Only the newest day in the list starts open; days toggled by hand
+are remembered while the page is open (`_open`), so after deleting the newest day the next one
+becomes the open default. The day header's subtitle is the short date plus the count,
+"Fri 16.10.26 · 5 played" (`playHistoryShortDate`: `ddd dd.mm.yy`), under the
+"Today"/"Yesterday"/"Thursday 15 October" title. Test: `test/music/play_history_page_test.dart`.
+

@@ -59,6 +59,8 @@ void main() {
         'Wednesday 30 September');
     expect(playHistoryMonthLabel(DateTime(2026, 9, 30)), 'September 2026');
     expect(playHistoryTime(DateTime(2026, 9, 30, 8, 5)), '08:05');
+    expect(playHistoryShortDate(DateTime(2026, 9, 30, 8, 5)), 'Wed 30.09.26');
+    expect(playHistoryShortDate(DateTime(2026, 10, 16)), 'Fri 16.10.26');
   });
 
   testWidgets('groups entries under month and day headers with their time',
@@ -76,7 +78,8 @@ void main() {
     expect(find.text('August 2026'), findsOneWidget);
     expect(find.text('Wednesday 30 September'), findsOneWidget);
     expect(find.text('Monday 31 August'), findsOneWidget);
-    expect(find.text('2 played'), findsOneWidget);
+    expect(find.text('Wed 30.09.26 · 2 played'), findsOneWidget);
+    expect(find.text('Mon 31.08.26 · 1 played'), findsOneWidget);
     expect(find.text('21:15 · Video · Channel'), findsOneWidget);
     expect(find.text('08:05 · Band'), findsOneWidget);
     // Newest first: September's entries above August's header.
@@ -99,12 +102,34 @@ void main() {
     await tester.tap(thirdDelete);
     await tester.pump();
     expect(find.text('Third'), findsNothing);
-    expect(find.text('1 played'), findsNWidgets(2));
+    expect(find.textContaining('1 played'), findsNWidgets(2));
 
     await tester.tap(find.byTooltip('Delete this day').first);
     await tester.pump();
     expect(find.text('Second'), findsNothing);
     expect(find.text('September 2026'), findsNothing);
+    expect(find.text('First'), findsOneWidget);
+  });
+
+  testWidgets('only the newest day starts open; tapping a day folds or '
+      'unfolds it', (tester) async {
+    history.entries.value = [
+      entry('b', 'Second', DateTime(2026, 9, 30, 8)),
+      entry('a', 'First', DateTime(2026, 8, 31, 12)),
+    ];
+    await tester.pumpWidget(const MaterialApp(home: PlayHistoryPage()));
+
+    expect(find.text('Second'), findsOneWidget);
+    expect(find.text('First'), findsNothing);
+    expect(find.text('Monday 31 August'), findsOneWidget);
+
+    await tester.tap(find.text('Monday 31 August'));
+    await tester.pump();
+    expect(find.text('First'), findsOneWidget);
+
+    await tester.tap(find.text('Wednesday 30 September'));
+    await tester.pump();
+    expect(find.text('Second'), findsNothing);
     expect(find.text('First'), findsOneWidget);
   });
 

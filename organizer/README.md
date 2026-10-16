@@ -1,4 +1,20 @@
-# Best Music Organizer (on your computer)
+# Best Music Organizer: the computer music bulk library organiser / sorter / filter tool
+
+Part 3 of Best Music (1 = the phone app, 2 = the music server on the Pi, 3 = this). Use it when
+you want to **sort, group, filter, rename, clean up or bulk-download** music; the phone is for
+listening.
+
+**Quick reminder of how to use it**
+
+1. Windows: double-click **`organizer\Music-Organizer.cmd`** (it opens http://127.0.0.1:8770).
+2. **Sync to Pi → Check what changed → Get them here** to bring the server's songs (and phone
+   uploads) to the computer.
+3. Organise: **Songs** (filter as you type with `/`, select, double-click a cell to edit),
+   **Artists / Albums / Genres / Folders** (Rename / merge), **Tidy up → Clean up names /
+   Group into folders / Duplicates / Missing info**, **Playlists** (+, drag songs in).
+4. New music: **Get music → Search YouTube / Artist's top songs / Charts (now or a year) /
+   Ask for a list / Paste a list**, tick what you want, Download.
+5. **Sync to Pi** again: the server and the app get everything.
 
 A fast web page on your own computer for **organizing your music**: grouping by artist, album
 and genre, fixing tags, cleaning up file names, sorting songs into folders, making playlists and

@@ -20,7 +20,8 @@ relates to BestToDo, where it came from).
   installs from before the split).
 - Version bump: `dart run tool/bump_version.dart <x.y.z> "<changelog entry>"` (pubspec.yaml +
   CHANGELOG.md).
-- Organizer (computer-side Python tool in `organizer/`, see its README and SPEC.md §10.6s):
+- Organizer (part 3 of Best Music, the computer music bulk library organiser/sorter/filter tool;
+  Python, in `organizer/`, see its README and SPEC.md §10.6s; README.md lists the 3 parts):
   `python -m unittest discover -s organizer/tests` (needs ffmpeg); run with
   `python organizer/organizer.py`.
 - Live checks (network, not part of `flutter test`): `flutter test tool/check_mp3_download.dart`,

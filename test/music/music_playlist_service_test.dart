@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:best_music/models/music_playlist.dart';
@@ -30,12 +31,59 @@ void main() {
     await tempDir.delete(recursive: true);
   });
 
-  test('load() seeds the two system playlists exactly once', () async {
+  test('load() seeds the three system playlists exactly once', () async {
     await MusicPlaylistService.instance.load();
 
     final ids = MusicPlaylistService.instance.playlists.value.map((p) => p.id);
-    expect(ids, containsAll([MusicPlaylist.favoritesId, MusicPlaylist.dislikedId]));
-    expect(MusicPlaylistService.instance.playlists.value, hasLength(2));
+    expect(ids, [
+      MusicPlaylist.favoritesId,
+      MusicPlaylist.likedId,
+      MusicPlaylist.dislikedId,
+    ]);
+    expect(MusicPlaylistService.instance.liked.name, 'Liked songs');
+  });
+
+  test('Liked songs is added to an older playlist file, starting with the '
+      'songs already swiped up', () async {
+    final swiped = Track.local(filePath: '/s.mp3', title: 's')
+        .copyWith(upSwipeCount: 2);
+    final plain = Track.local(filePath: '/p.mp3', title: 'p');
+    MusicLibraryService.instance.tracks.value = [swiped, plain];
+    await File('${tempDir.path}/music_playlists.json').writeAsString(jsonEncode([
+      MusicPlaylist.favorites().toJson(),
+      MusicPlaylist.disliked().toJson(),
+      MusicPlaylist(id: 'p1', name: 'Mine').toJson(),
+    ]));
+
+    await MusicPlaylistService.instance.load();
+
+    final ids = MusicPlaylistService.instance.playlists.value.map((p) => p.id);
+    expect(ids, [
+      MusicPlaylist.favoritesId,
+      MusicPlaylist.likedId,
+      MusicPlaylist.dislikedId,
+      'p1',
+    ]);
+    expect(MusicPlaylistService.instance.isLiked(swiped.id), isTrue);
+    expect(MusicPlaylistService.instance.isLiked(plain.id), isFalse);
+  });
+
+  test('liking and disliking are exclusive; favorites stay separate',
+      () async {
+    final service = MusicPlaylistService.instance;
+    await service.load();
+    await service.markLiked('t');
+    expect(service.isLiked('t'), isTrue);
+    expect(service.isFavorite('t'), isFalse);
+    expect(service.weightOf('t'), MusicPlaylistService.likedWeight);
+
+    await service.markDisliked('t');
+    expect(service.isLiked('t'), isFalse);
+    await service.markLiked('t');
+    expect(service.isDisliked('t'), isFalse);
+
+    await service.toggleFavorite('t');
+    expect(service.weightOf('t'), MusicPlaylistService.favoriteWeight);
   });
 
   test('toggleFavorite adds/removes and clears any dislike on the same track',

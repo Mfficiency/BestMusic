@@ -24,6 +24,7 @@ class MusicPlaylistService {
   static const _fileName = 'music_playlists.json';
 
   static const double favoriteWeight = 3.0;
+  static const double likedWeight = 2.0;
   static const double dislikedWeight = 0.05;
   static const double normalWeight = 1.0;
 
@@ -55,8 +56,19 @@ class MusicPlaylistService {
     if (loaded.where((p) => p.id == MusicPlaylist.favoritesId).isEmpty) {
       loaded.insert(0, MusicPlaylist.favorites());
     }
+    if (loaded.where((p) => p.id == MusicPlaylist.likedId).isEmpty) {
+      // New in 0.3.52: start it with the songs already swiped up (counted
+      // since 0.3.45; until now a swipe up went into Favorites).
+      loaded.insert(
+          1,
+          MusicPlaylist.liked()
+            ..trackIds.addAll([
+              for (final t in MusicLibraryService.instance.tracks.value)
+                if (t.upSwipeCount > 0) t.id,
+            ]));
+    }
     if (loaded.where((p) => p.id == MusicPlaylist.dislikedId).isEmpty) {
-      loaded.insert(1, MusicPlaylist.disliked());
+      loaded.insert(2, MusicPlaylist.disliked());
     }
     playlists.value = loaded;
     await _save();
@@ -86,10 +98,13 @@ class MusicPlaylistService {
 
   MusicPlaylist get favorites => byId(MusicPlaylist.favoritesId)!;
   MusicPlaylist get disliked => byId(MusicPlaylist.dislikedId)!;
+  MusicPlaylist get liked => byId(MusicPlaylist.likedId)!;
 
   // Tolerant of the playlists not being loaded yet (false, not a crash).
   bool isFavorite(String trackId) =>
       byId(MusicPlaylist.favoritesId)?.trackIds.contains(trackId) ?? false;
+  bool isLiked(String trackId) =>
+      byId(MusicPlaylist.likedId)?.trackIds.contains(trackId) ?? false;
   bool isDisliked(String trackId) =>
       byId(MusicPlaylist.dislikedId)?.trackIds.contains(trackId) ?? false;
 
@@ -108,6 +123,14 @@ class MusicPlaylistService {
   Future<void> markDisliked(String trackId) async {
     await addTo(MusicPlaylist.dislikedId, trackId);
     await removeFrom(MusicPlaylist.favoritesId, trackId);
+    await removeFrom(MusicPlaylist.likedId, trackId);
+  }
+
+  /// Swipe up on Now Playing: into Liked songs (idempotent), and out of
+  /// "Don't really like".
+  Future<void> markLiked(String trackId) async {
+    await addTo(MusicPlaylist.likedId, trackId);
+    await removeFrom(MusicPlaylist.dislikedId, trackId);
   }
 
   Future<void> addTo(String playlistId, String trackId) async {
@@ -191,6 +214,35 @@ class MusicPlaylistService {
     playlists.value = [...playlists.value, playlist];
     await _save();
     return playlist;
+  }
+
+  /// Renames a hand-built, imported or rule playlist. No-op for a system
+  /// playlist or a blank name.
+  Future<void> renamePlaylist(String id, String name) async {
+    final playlist = byId(id);
+    final trimmed = name.trim();
+    if (playlist == null || playlist.isSystem || trimmed.isEmpty) return;
+    playlist.name = trimmed;
+    playlists.value = [...playlists.value];
+    await _save();
+  }
+
+  /// Puts [ordered] (track ids, e.g. after a drag on the edit page) as the
+  /// playlist's order. Ids of the playlist missing from [ordered] (songs no
+  /// longer in the library, so not shown) stay, at the end; ids not in the
+  /// playlist are ignored.
+  Future<void> setTrackOrder(String id, List<String> ordered) async {
+    final playlist = byId(id);
+    if (playlist == null || playlist.kind != PlaylistKind.list) return;
+    final current = playlist.trackIds.toSet();
+    final front = [for (final t in ordered) if (current.contains(t)) t];
+    final shown = front.toSet();
+    playlist.trackIds = [
+      ...front,
+      for (final t in playlist.trackIds) if (!shown.contains(t)) t,
+    ];
+    playlists.value = [...playlists.value];
+    await _save();
   }
 
   Future<void> deletePlaylist(String id) async {
@@ -319,6 +371,7 @@ class MusicPlaylistService {
   double weightOf(String trackId) {
     if (isDisliked(trackId)) return dislikedWeight;
     if (isFavorite(trackId)) return favoriteWeight;
+    if (isLiked(trackId)) return likedWeight;
     return normalWeight;
   }
 

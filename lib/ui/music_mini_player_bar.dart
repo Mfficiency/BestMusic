@@ -13,8 +13,8 @@ import 'youtube_feed_page.dart';
 
 /// Small persistent bar showing the current song — or, when nothing is
 /// playing, the last-played one restored at startup
-/// ([MusicPlayerService.restoreLastSession]) — with play/pause and a
-/// tap-through to [NowPlayingPage].
+/// ([MusicPlayerService.restoreLastSession]) — with play/pause, Next and
+/// a tap-through to [NowPlayingPage].
 ///
 /// Best Music mounts it once below its navigator (`main.dart`), so it
 /// sits at the bottom of every screen; that spot has no Overlay, so it uses
@@ -153,6 +153,18 @@ class MusicMiniPlayerBar extends StatelessWidget {
                               visualDensity: VisualDensity.compact,
                               onPressed: audio.fastForward,
                             ),
+                          // Next song/video (counts as a skip, like
+                          // Now Playing's Next).
+                          Semantics(
+                            label: 'Next',
+                            button: true,
+                            child: IconButton(
+                              key: const ValueKey('musicMiniPlayerNext'),
+                              icon: const Icon(Icons.skip_next),
+                              visualDensity: VisualDensity.compact,
+                              onPressed: audio.skipToNext,
+                            ),
+                          ),
                         ],
                       ),
                     ),

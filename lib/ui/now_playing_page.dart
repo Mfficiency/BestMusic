@@ -74,7 +74,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
     const threshold = 250.0;
     if (velocity < -threshold || _dragOffset < -80) {
       MusicPlayerService.handler.swipeUpCurrent();
-      _flash('Added to Favorites');
+      _flash('Added to Liked songs');
     } else if (velocity > threshold || _dragOffset > 80) {
       MusicPlayerService.handler.dislikeCurrentAndSkip();
       _flash("Skipped, won't come up as much");
@@ -88,7 +88,8 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
     return Scaffold(
       // Only the menu button up here: every control sits at the bottom,
       // within thumb reach (_ToolsRow, _Transport).
-      appBar: buildSubpageAppBar(context, title: 'Now Playing', showBack: false),
+      appBar:
+          buildSubpageAppBar(context, title: 'Now Playing', showBack: false),
       body: StreamBuilder<MediaItem?>(
         stream: handler.mediaItem,
         builder: (context, itemSnapshot) {
@@ -105,6 +106,8 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
           final track = handler.currentTrack;
           final isFavorite = track != null &&
               MusicPlaylistService.instance.isFavorite(track.id);
+          final isLiked =
+              track != null && MusicPlaylistService.instance.isLiked(track.id);
           return GestureDetector(
             onVerticalDragUpdate: (d) =>
                 setState(() => _dragOffset += d.delta.dy),
@@ -172,7 +175,8 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                               const SizedBox(height: 24),
                               Text(
                                 item.title,
-                                style: Theme.of(context).textTheme.headlineSmall,
+                                style:
+                                    Theme.of(context).textTheme.headlineSmall,
                                 textAlign: TextAlign.center,
                               ),
                               if ((item.artist ?? '').isNotEmpty)
@@ -180,14 +184,31 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                                   padding: const EdgeInsets.only(top: 8),
                                   child: Text(
                                     item.artist!,
-                                    style: Theme.of(context).textTheme.bodyLarge,
+                                    style:
+                                        Theme.of(context).textTheme.bodyLarge,
                                     textAlign: TextAlign.center,
                                   ),
                                 ),
-                              if (isFavorite)
-                                const Padding(
-                                  padding: EdgeInsets.only(top: 8),
-                                  child: Icon(Icons.favorite, color: Colors.pink),
+                              if (isFavorite || isLiked)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (isFavorite)
+                                        const Icon(Icons.favorite,
+                                            color: Colors.pink,
+                                            semanticLabel: 'In Favorites'),
+                                      if (isFavorite && isLiked)
+                                        const SizedBox(width: 8),
+                                      if (isLiked)
+                                        Icon(Icons.thumb_up,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary,
+                                            semanticLabel: 'In Liked songs'),
+                                    ],
+                                  ),
                                 ),
                             ],
                           ),
@@ -211,7 +232,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                     ),
                   ),
                   const Text(
-                    'Swipe up to favorite • swipe down to skip & dislike',
+                    'Swipe up to like • swipe down to skip & dislike',
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
@@ -435,7 +456,9 @@ class _Transport extends StatelessWidget {
               onPressed: () => handler.skipToPrevious(),
             ),
             IconButton(
-              icon: Icon(playing ? Icons.pause_circle_filled : Icons.play_circle_filled),
+              icon: Icon(playing
+                  ? Icons.pause_circle_filled
+                  : Icons.play_circle_filled),
               tooltip: playing ? 'Pause' : 'Play',
               iconSize: 56,
               onPressed: () async {

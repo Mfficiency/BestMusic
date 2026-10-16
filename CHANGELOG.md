@@ -5,9 +5,32 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
-## [0.3.47] - 2026-10-16
+## [0.3.53] - 2026-10-16
 - Now Playing: new Lyrics button. The song's words scroll along as it plays, with the line being sung lighting up as it goes; tap a line to jump there. Lyrics come from an .lrc file next to the song, from the song's own tags, or from LRCLIB (free, online), and are kept on the phone once found.
 - Now Playing: new Repeat button. Tap it to go from off to repeat all (the queue starts over after its last song, instead of carrying on with a shuffle of your whole library) to repeat one (the song plays again each time it ends; Next still moves on). Bluetooth and car controls can switch it too, and it's remembered.
+
+## [0.3.52] - 2026-10-16
+- New "Liked songs" playlist: swiping up on Now Playing now puts the song there. Favorites is only for songs you heart (or add to Favorites yourself), so the two lists are separate.
+- Liked songs starts with the songs you've already swiped up. A liked song shows a thumbs-up under its title on Now Playing, and you can remove songs from Liked songs with ⋮ → Remove from playlist.
+- In shuffle, liked songs come up more often too (Favorites still the most).
+
+## [0.3.51] - 2026-10-16
+- Song lists and playlists can be sorted by "Times played" (most played first, or least played first). Each song then shows how many times it was played.
+- Playlists can also be shown in their own order ("Playlist order"): the order you dragged them into on Edit songs, or the order of Last Added and Most Played.
+
+## [0.3.50] - 2026-10-16
+- Playlists: every playlist you made (or imported, or built from rules) has a ⋮ menu, on the Playlists tab and on the playlist itself, with Rename, Edit and Delete.
+- Edit songs: drag songs into a new order, remove songs, or add more with +. Every change is saved right away.
+- Deleting a playlist now asks first. The songs stay in your library.
+
+## [0.3.49] - 2026-10-16
+- Play history: tap a day to fold or unfold its songs; only the latest day starts open, so you see all your days at a glance. Each day also shows its short date, like "Fri 16.10.26".
+
+## [0.3.48] - 2026-10-16
+- Play history: every entry has an info button. From there you can open the song's info (details, plays, skips and swipes), play it next, add it to the queue or to a playlist, or delete it from the history. Videos can be added to the video queue.
+
+## [0.3.47] - 2026-10-15
+- The song bar at the bottom has a Next button, so you can skip to the next song or video from any screen.
 
 ## [0.3.46] - 2026-10-15
 - Now Playing: new "Add to playlist" button, so you can put the song that's playing in a playlist (or a new one) straight away.

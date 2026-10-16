@@ -1841,7 +1841,7 @@ contents>}}`. `stores` carries the documents-dir files listed in
 SponsorBlock, watch progress), `mp3_downloads.json`, `music_enrichment.json`
 and `music_resume.json` (the playback resume point; read once at startup, so a
 restored one applies on the next launch, Best Music 0.3.30), `play_history.json`
-(Play history, Best Music 0.3.43) — read straight
+(Play history, Best Music 0.3.45) — read straight
 from disk so a backup is complete without any page loaded. The library entries
 carry the analyzed metadata (BPM, genre, year, …), play counts and manual
 edits; `music_enrichment.json` the online/on-device lookup results; the feed
@@ -2039,13 +2039,18 @@ result to the music server Pi, which the app streams from. Full guide: `organize
   entry is dropped.
 - **Names** (`mo/names.py`): `clean_title`/`clean_artist` port `track_title.dart`'s
   junk-annotation rule and add track-number, underscore, ALL-CAPS and "feat." clean-up.
+  `split_artist_title` treats underscores as spaces, so `kygo_-_stole_the_show` splits too.
   `song_key` (accent/case/punctuation/feat-insensitive artist|title) drives duplicates and the
   "already have" mark. `format_pattern` builds paths from `{artist}/{title}`-style patterns with
   Windows-safe parts.
 - **Get music** (`mo/sources.py`, `mo/downloader.py`):
   - **Lists:** pasted lists, YouTube search (yt-dlp flat search), Deezer's public API for an
     artist's top songs and a country's "Top <country>" chart playlist by "Deezer Charts" (local
-    names like "Top Belgique" accepted), and a free prompt answered by Claude.
+    names like "Top Belgique" accepted), and a free prompt answered by Claude. Charts also has a
+    period picker ("right now" or one of the last 16 years): a year sends a ready-made
+    year-end-chart prompt to the Claude source instead of Deezer (Belgium → Ultratop year
+    chart). Without an API key (Settings or `ANTHROPIC_API_KEY`) the Claude source says so
+    instead of failing inside the client.
   - **Claude:** `claude-opus-5-5` with the `web_search_20260209` server tool and a strict
     `submit_songs` tool for the result. It handles `pause_turn`, has `fallbacks: "default"`
     under `server-side-fallback-2026-07-01`, and checks for refusals.
@@ -2151,3 +2156,211 @@ Tests: `test/music/play_history_service_test.dart`, `test/music/play_history_pag
   kind or nothing before (`whenLoaded`): right after loading, as before.
   Tests: `test/music/music_resume_test.dart` (pill hidden next to the bar's button, volume
   order), `test/music/now_playing_page_test.dart` (Add to playlist).
+
+### 10.6w Next on the song bar (Best Music 0.3.47)
+
+`MusicMiniPlayerBar` gains a Next button after play/pause (and after forward 10 s for a video):
+`skip_next`, key `musicMiniPlayerNext`, labelled "Next" through `Semantics` like play/pause
+(the bar sits outside the navigator's Overlay). It calls `skipToNext`, so it counts as a skip
+of the track being left (§10.6u). Test: `test/music/music_resume_test.dart`.
+
+### 10.6x Play history entry options (Best Music 0.3.48)
+
+Each Play history row gets an info button (tooltip "Song info and options", next to "Delete from
+history") opening `showPlayHistoryEntrySheet`: the title/artist, then **Song info**
+(`TrackMetadataPage`), **Play next**, **Add to queue**, **Add to playlist**
+(`showAddToPlaylistSheet`) and **Delete from history**. `playHistoryTrackOf(entry)` finds the
+track: the library song by id (null once it's gone, which leaves only Delete and says "no longer
+in your library"), or for a video the feed's copy, else `Track.youtube` rebuilt from the entry.
+A video only gets Add to queue, through `addToVideoQueue`. Songs use the new
+`MusicAudioHandler.addToMusicQueue(track, playNext:)`: right after the playing song or at the
+end of the music queue; while a video plays, into the remembered music session (or a new one)
+that "Back to music" resumes; with nothing loaded, the paused queue. Queue options need the
+player to be ready. Tests: `test/music/play_history_page_test.dart`,
+`test/music/music_audio_handler_test.dart`.
+
+### 10.6y Play history days fold (Best Music 0.3.49)
+
+`PlayHistoryPage` is stateful: tapping a day header (chevron `expand_less`/`expand_more`) folds
+or unfolds that day's entries. Only the newest day in the list starts open; days toggled by hand
+are remembered while the page is open (`_open`), so after deleting the newest day the next one
+becomes the open default. The day header's subtitle is the short date plus the count,
+"Fri 16.10.26 · 5 played" (`playHistoryShortDate`: `ddd dd.mm.yy`), under the
+"Today"/"Yesterday"/"Thursday 15 October" title. Test: `test/music/play_history_page_test.dart`.
+
+### 10.6z Playlists: rename, edit, delete (Best Music 0.3.50)
+
+`lib/ui/playlist_edit.dart`. Every hand-built, imported or rule playlist
+(`playlistIsEditable`: not system, kind list or rule) gets a `PlaylistOptionsButton` (⋮, tooltip
+"Playlist options") on its Playlists-tab row (replacing the old delete / edit-rules icons) and in
+its `MusicPlaylistDetailPage` app bar: **Rename** (`promptPlaylistName` with title "Rename
+playlist", the old name pre-selected, "Save" → `MusicPlaylistService.renamePlaylist`, which
+ignores system playlists and blank names), **Edit songs** / **Edit rules**
+(`openPlaylistEditor`: `EditPlaylistSongsPage` for a list, `RulePlaylistEditorPage` for a rule
+playlist) and **Delete** (`confirmDeletePlaylist`: "Delete "<name>"?" — the songs stay; from the
+playlist's own page the page closes after). `EditPlaylistSongsPage`: a `ReorderableListView` of
+the resolved songs with a drag handle each, "Remove from playlist" per row, and Rename / Add
+songs in the app bar; a drag saves through `MusicPlaylistService.setTrackOrder(id, ordered)`,
+which keeps ids not shown (songs no longer in the library) at the end. Every change saves at
+once. Test: `test/music/playlist_edit_test.dart`.
+
+### 10.6aa Sort by times played, playlist order (Best Music 0.3.51)
+
+`TrackSortField` gains `playCount` ("Times played": most played first by default, "Least played
+first" flipped; ties by title; fast-scroll bubble "12 plays"; while it's the sort, each row's
+subtitle adds "· N plays" via `playCountLabel`) and `listOrder` ("Playlist order": the list as
+given, or reversed — "First to last"/"Last to first"). `listOrder` is only offered where
+`TrackListView(listOrder: true)`, which `MusicPlaylistDetailPage` passes for every playlist (its
+`resolvedTracks` order: the order dragged on Edit songs, or Last Added/Most Played's computed
+order). The choice is shared through `Config.musicTrackSortField` like the others; a list that
+isn't a playlist shows "Added to device" while "Playlist order" is the remembered choice
+(`_shownField`). Tests: `test/music/music_player_page_test.dart` (track sorting).
+
+### 10.6ab Liked songs, separate from Favorites (Best Music 0.3.52)
+
+A third system playlist, `MusicPlaylist.liked()` (id `liked`, "Liked songs", icon `thumb_up`),
+kept between Favorites and "Don't really like". Swipe up on Now Playing
+(`MusicAudioHandler.swipeUpCurrent`) counts the swipe and calls
+`MusicPlaylistService.markLiked` (into Liked songs, out of "Don't really like"); it no longer
+touches Favorites, which only the heart button / ⋮ "Add to Favorites" / Add to playlist fill.
+`markDisliked` also takes a song out of Liked songs. `load` adds Liked songs to an older
+playlists file, filled with the library songs that have `upSwipeCount > 0` (swipe-ups are
+counted since 0.3.45; before 0.3.52 they went into Favorites, which keeps them). Shuffle weight:
+`likedWeight` 2 (Favorites 3 wins when both). Now Playing flashes "Added to Liked songs", the
+hint reads "Swipe up to like • swipe down to skip & dislike", and a liked song shows a
+thumbs-up next to the Favorites heart under its title. Liked songs' page offers "Remove from
+playlist" per song (there is no un-swipe); it stays a system list (no add, rename or delete).
+Tests: `music_playlist_service_test.dart`, `music_audio_handler_test.dart`,
+`music_player_page_test.dart`.
+
+### 10.6ac Lyrics and Repeat on Now Playing (Best Music 0.3.53)
+
+Two ideas taken from the Obsidian Music Player app (`varun7009/obsidian-music`, a closed-source
+Android player whose repo holds only its README, screenshots and release notes): synced lyrics
+and a repeat button. Now Playing's tools row gains two buttons (Repeat, and Lyrics for songs),
+which makes eight for a song; on a phone narrower than 48 dp per button the row is scaled down
+to fit (`FittedBox`) rather than overflowing.
+
+- **Repeat** — `MusicRepeatMode { off, all, one }` on `MusicAudioHandler.repeatMode`
+  (`ValueNotifier`), cycled by `cycleRepeat()` (off → all → one → off) and saved as
+  `Config.musicRepeatMode` (`settings.json` key `musicRepeatMode`, `'off'`/`'all'`/`'one'`).
+  The button shows `repeat` / `repeat_one`, coloured when on; tooltips "Repeat off" / "Repeat
+  all" / "Repeat one". The mode is also reported in `PlaybackState.repeatMode`, and
+  `setRepeatMode` (what Bluetooth/car/Android media controls call) sets it.
+  - *off* is what Best Music always did: after the queue's last song, a fresh weighted shuffle
+    of the whole library (a Subscriptions-feed queue just stops).
+  - *all*: `_advance` runs the next position through `MusicAudioHandler.wrapIndex`, so past
+    the last song is the first again and Previous on the first is the last (feed queues
+    too).
+  - *one*: when a song ends (`ProcessingState.completed`, after the play count and the "end of
+    song" sleep timer are handled), it is rewound and played again, and recorded in the play
+    history again. Next/Previous still move on.
+- **Lyrics** — `lib/ui/lyrics_view.dart` (`LyricsView`; until 0.3.55 a separate `LyricsPage`
+  opened by a "Lyrics" button, now the Lyrics tab of Now Playing's ⓘ panel, §10.6ae). It
+  follows the playing song (a new `mediaItem` → a new lookup) and shows:
+  - *synced* lyrics as a column of lines: the one being sung (`Lyrics.indexAt`) is bright and
+    fills in character by character as it's sung (`Lyrics.progressAt`: LRC only gives line
+    starts, so a line is assumed to last 70 ms per character, at least 1.5 s, never past the
+    next line's start); the rest are dim. The page polls `playbackState.position` every 100 ms
+    and scrolls the current line to 40 % of the panel's height (`Scrollable.ensureVisible`) unless the
+    user scrolled by hand in the last 4 s. Tapping a line seeks there. An empty LRC line
+    (instrumental break) shows as "♪".
+  - *plain* lyrics as selectable text, with a note that they aren't timed.
+  - messages for no lyrics ("Search again"), LRCLIB unreachable ("Try again"), instrumental,
+    and a Subscriptions video (they have a transcript instead).
+  Under the lyrics, "Lyrics from …" names the source, next to a refresh button ("Search
+  lyrics again") that looks again, skipping the saved copy.
+- **Where lyrics come from** — `lib/services/lyrics_service.dart` (`LyricsService.lyricsFor`),
+  in order: (1) an `.lrc` file next to a local song (`Song.mp3` → `Song.lrc`, UTF-8 or
+  Latin-1); (2) the `USLT` frame of a local mp3's ID3v2 tag (the whole tag is read, size from
+  its header, at most 8 MiB, so big cover art in front doesn't hide it); (3) the saved result of
+  an earlier lookup, `lyrics/<sha1 of track id>.json` in the app documents dir (found lyrics and
+  "instrumental" for good, "nothing found" for 7 days); (4) LRCLIB (`lrclib.net`, free, no
+  account): `/api/get` with title, artist, album and length (seconds) first, then `/api/search`
+  per spelling from `queryVariants` (cleaned title, main artist, no brackets), each result scored
+  with the metadata lookup's `matchScore` (≥ `minMatchScore`), a synced record winning a tie.
+  Title/artist are `displayTitle`/`displayArtist`, so "Artist - Song" file names work. A
+  network failure, 429 or 5xx is reported as unavailable and not saved. Lookups only happen
+  while the lyrics page is open, so playing music uses no extra data.
+- **LRC parsing** — `lib/models/lyrics.dart` (`Lyrics.parseLrc`): `[mm:ss]`, `[mm:ss.x]`,
+  `[mm:ss.xx]`, `[mm:ss.xxx]` and `[mm:ss:xx]` stamps, several per line (a repeated chorus),
+  `[offset:±ms]` (positive = earlier), word stamps (`<mm:ss.xx>`) dropped, other `[tag:value]`
+  lines skipped, lines sorted by time (stable). Text without stamps becomes plain lyrics.
+  Tests: `test/music/lyrics_test.dart` (parser, `indexAt`, `progressAt`, JSON),
+  `test/music/lyrics_service_test.dart` (exact match, search fallback and scoring, the 7-day
+  "nothing found", instrumental, offline, `.lrc` file, ID3 `USLT`, videos),
+  `test/music/lyrics_view_test.dart` (panel, sung line, plain, messages, following the song,
+  narrow phone), `test/music/music_audio_handler_test.dart` and
+  `test/music/now_playing_page_test.dart` (repeat).
+
+### 10.6ad Selecting several songs (Best Music 0.3.54)
+
+Every song list can select songs and act on all of them at once. `TrackSelection`
+(`lib/ui/track_selection_bar.dart`, a mixin on the list's `State`) holds the selected ids:
+
+- **Starting** — a row's music icon (the note, the server cloud, or the now-playing icon) is
+  wrapped in an `InkResponse` with tooltip "Select" (`selectionLeading`); tapping it selects
+  that song. Long-pressing a row selects it too.
+- **While selecting** — the icons turn into a tick (`check_circle`, primary colour) or an empty
+  circle, selected rows are highlighted (`ListTile.selected`), a row tap selects/unselects
+  instead of playing (`selectionTap`), and the system back gesture ends the selection instead
+  of leaving the page (`selectionScope`, a `PopScope`). Songs that leave the list (deleted,
+  removed) drop out of the selection (`keepSelectedIn`).
+- **`TrackSelectionBar`** replaces the list's sort/play row (or the BPM page's divider, or sits
+  above a server folder's list): ✕ "Cancel selection", "N selected", "Select all" / "Select
+  none" (once all are selected), "Play selected" (plays them as the queue, in list order, and
+  opens Now Playing), "Add selected to playlist" (`showAddTracksToPlaylistSheet`: New playlist
+  with all of them, or tap a hand-made playlist to add them — `addAllTo`, no duplicates,
+  "Already in it" shown) and "More for selected": Play next / Add to queue
+  (`MusicAudioHandler.addAllToMusicQueue`: in list order; with nothing loaded they become the
+  queue), Add to Favorites (`MusicPlaylistService.addAllToFavorites`, also out of "Don't really
+  like"), Remove from playlist (only where `TrackListView.onRemove` is set: a hand-made
+  playlist's page), Move to folder (`pickFolderAndMoveTracks`: only when all are phone songs or
+  all server songs, `canMoveTogether`; the shared current folder isn't offered) and Delete
+  (`confirmAndDeleteTracks`: one "Delete N songs?" question, then each is deleted; a failure is
+  reported with how many went). Every action except Select all ends the selection.
+- **Where** — `TrackListView` (Tracks, Favourites, search results, artist/folder/tag pages,
+  playlist pages), Songs by BPM (`BpmRangePage`) and the server's folders (`ServerFolderView`,
+  now stateful). The queue (drag to reorder, its own remove) and Play history (its own per-entry
+  menu) keep their own handling.
+  Tests: `test/music/track_selection_test.dart`, `test/music/bpm_range_page_test.dart`,
+  `test/music/music_audio_handler_test.dart` (`addAllToMusicQueue`).
+
+### 10.6ae Now Playing's ⓘ panel: Lyrics and Info tabs, controls always in view (Best Music 0.3.55)
+
+The ⓘ button in Now Playing's tools row (tooltip "Track info", "Hide track info" while open,
+filled and coloured when open) no longer opens `TrackMetadataPage`; it toggles
+`NowPlayingPage.showDetails` (a static `ValueNotifier<bool>`, so the next Now Playing in the same
+app run opens the same way). The separate Lyrics button is gone.
+
+- **Closed** — as before: the big artwork, title and artist fill the top, the "Swipe up to like
+  • swipe down to skip & dislike" hint, then the controls; the whole page takes the swipes.
+- **Open** — everything moves up: `_CompactHeader` (56 px artwork, title, artist, the
+  favourite/liked marks; it alone takes the swipes, and the swipe's confirmation shows in place
+  of the title) at the top, then the controls (back-to-video chip, progress bar, transport, tools
+  row) — never scrolled away — then, filling the rest (about the bottom half),
+  `_DetailsPanel`: a `TabBar` with **Lyrics** (`LyricsView`) and **Info** (`TrackInfoView`),
+  each scrolling on its own. The last tab is remembered (`NowPlayingPage.detailsTab`).
+- **Info tab** — `TrackInfoView` (`lib/ui/track_metadata_page.dart`): title, artist, album,
+  genre, year, BPM, tags, an "Edit info" button (opens `TrackMetadataPage`, the editor), then
+  `TrackStatsRows` — length, plays, skips, swipes, shuffle weight, dates, source, file — the
+  same rows `TrackMetadataPage` shows under its fields (moved there from the page). A
+  Subscriptions video (not a library song) shows its title, channel and length.
+  Tests: `test/music/lyrics_view_test.dart` (ⓘ opens the panel above which the controls stay,
+  Info tab, closing, the panel on a 320×640 screen), `test/music/now_playing_page_test.dart`.
+
+### 10.6af Progress bar on one line, lyrics lookup says why it failed (Best Music 0.3.56)
+
+- Now Playing's `_ProgressBar` is one row: elapsed time, the `Slider`, the length (small text),
+  so it takes one line instead of two (the ⓘ panel gets the room). While the length isn't
+  known yet the bar is empty and the length reads "--:--" (it used to show a full bar and
+  "00:00").
+- `LyricsService`: each LRCLIB request is tried once more after a timeout or connection error;
+  when it still fails the lookup carries a `reason` ("no answer within 15 s", "server error
+  503", the connection error's first line), shown in brackets under "Couldn't reach the
+  lyrics service (LRCLIB)" and written to the app log (source "Lyrics").
+- `LyricsService.splitForLyrics`: a song with no artist whose name is "Artist ●● Song",
+  "Artist • Song", "Artist | Song" or "Artist: Song" (YouTube uploads) is searched as that
+  artist and song.
+  Tests: `test/music/now_playing_page_test.dart`, `test/music/lyrics_service_test.dart`.
+

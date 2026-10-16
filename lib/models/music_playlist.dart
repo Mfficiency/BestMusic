@@ -37,6 +37,10 @@ class MusicPlaylist {
   static const String favoritesId = 'favorites';
   static const String dislikedId = 'disliked';
 
+  /// Songs swiped up on Now Playing — separate from [favoritesId], which
+  /// the heart button and "Add to playlist" fill.
+  static const String likedId = 'liked';
+
   final String id;
   String name;
   List<String> trackIds;
@@ -65,6 +69,12 @@ class MusicPlaylist {
   factory MusicPlaylist.favorites() => MusicPlaylist(
         id: favoritesId,
         name: 'Favorites',
+        isSystem: true,
+      );
+
+  factory MusicPlaylist.liked() => MusicPlaylist(
+        id: likedId,
+        name: 'Liked songs',
         isSystem: true,
       );
 

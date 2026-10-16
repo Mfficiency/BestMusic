@@ -30,6 +30,10 @@ class _FakePathProvider extends PathProviderPlatform {
 class _FakeAudioHandler extends BaseAudioHandler {
   int plays = 0;
   int pauses = 0;
+  int nexts = 0;
+
+  @override
+  Future<void> skipToNext() async => nexts++;
 
   @override
   Future<void> play() async {
@@ -465,6 +469,22 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('musicMiniPlayerPlayPause')));
       await tester.pump();
       expect(audio.pauses, 1);
+    });
+
+    testWidgets('has a Next button that skips to the next track',
+        (tester) async {
+      final audio = _FakeAudioHandler();
+      audio.mediaItem
+          .add(const MediaItem(id: 'local:/fake/x.mp3', title: 'Song'));
+
+      await tester.pumpWidget(MaterialApp(
+          home: Scaffold(body: MusicMiniPlayerBar(handler: audio))));
+      await tester.pump();
+
+      expect(find.bySemanticsLabel('Next'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('musicMiniPlayerNext')));
+      await tester.pump();
+      expect(audio.nexts, 1);
     });
 
     testWidgets('is hidden when there is no current or last-played song',

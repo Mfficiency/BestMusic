@@ -1,3 +1,4 @@
+import os
 import unittest
 from types import SimpleNamespace as NS
 
@@ -82,6 +83,15 @@ class Claude(unittest.TestCase):
         client = NS(messages=NS(create=lambda **kw: NS(stop_reason="refusal", content=[])))
         with self.assertRaises(sources.SourceError):
             sources.ask_claude("x", client=client)
+
+    def test_no_api_key_says_where_to_put_it(self):
+        old = os.environ.pop("ANTHROPIC_API_KEY", None)
+        try:
+            with self.assertRaisesRegex(sources.SourceError, "Settings"):
+                sources.ask_claude("x", api_key="")
+        finally:
+            if old is not None:
+                os.environ["ANTHROPIC_API_KEY"] = old
 
 
 if __name__ == "__main__":

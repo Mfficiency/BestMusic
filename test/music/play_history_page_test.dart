@@ -1,5 +1,9 @@
 import 'dart:io';
 
+import 'package:best_music/models/track.dart';
+import 'package:best_music/services/music_audio_handler.dart';
+import 'package:best_music/services/music_library_service.dart';
+import 'package:best_music/services/music_player_service.dart';
 import 'package:best_music/services/now_playing.dart';
 import 'package:best_music/services/play_history_service.dart';
 import 'package:best_music/ui/play_history_page.dart';
@@ -25,10 +29,13 @@ void main() {
     tempDir = await Directory.systemTemp.createTemp();
     PathProviderPlatform.instance = _FakePathProvider(tempDir.path);
     history.resetForTest();
+    MusicLibraryService.instance.resetForTest();
+    MusicPlayerService.setHandlerForTest(null);
     NowPlaying.trackId.value = null;
   });
 
   tearDown(() async {
+    MusicPlayerService.setHandlerForTest(null);
     NowPlaying.trackId.value = null;
     await tempDir.delete(recursive: true);
   });
@@ -52,6 +59,8 @@ void main() {
         'Wednesday 30 September');
     expect(playHistoryMonthLabel(DateTime(2026, 9, 30)), 'September 2026');
     expect(playHistoryTime(DateTime(2026, 9, 30, 8, 5)), '08:05');
+    expect(playHistoryShortDate(DateTime(2026, 9, 30, 8, 5)), 'Wed 30.09.26');
+    expect(playHistoryShortDate(DateTime(2026, 10, 16)), 'Fri 16.10.26');
   });
 
   testWidgets('groups entries under month and day headers with their time',
@@ -69,7 +78,8 @@ void main() {
     expect(find.text('August 2026'), findsOneWidget);
     expect(find.text('Wednesday 30 September'), findsOneWidget);
     expect(find.text('Monday 31 August'), findsOneWidget);
-    expect(find.text('2 played'), findsOneWidget);
+    expect(find.text('Wed 30.09.26 · 2 played'), findsOneWidget);
+    expect(find.text('Mon 31.08.26 · 1 played'), findsOneWidget);
     expect(find.text('21:15 · Video · Channel'), findsOneWidget);
     expect(find.text('08:05 · Band'), findsOneWidget);
     // Newest first: September's entries above August's header.
@@ -92,12 +102,34 @@ void main() {
     await tester.tap(thirdDelete);
     await tester.pump();
     expect(find.text('Third'), findsNothing);
-    expect(find.text('1 played'), findsNWidgets(2));
+    expect(find.textContaining('1 played'), findsNWidgets(2));
 
     await tester.tap(find.byTooltip('Delete this day').first);
     await tester.pump();
     expect(find.text('Second'), findsNothing);
     expect(find.text('September 2026'), findsNothing);
+    expect(find.text('First'), findsOneWidget);
+  });
+
+  testWidgets('only the newest day starts open; tapping a day folds or '
+      'unfolds it', (tester) async {
+    history.entries.value = [
+      entry('b', 'Second', DateTime(2026, 9, 30, 8)),
+      entry('a', 'First', DateTime(2026, 8, 31, 12)),
+    ];
+    await tester.pumpWidget(const MaterialApp(home: PlayHistoryPage()));
+
+    expect(find.text('Second'), findsOneWidget);
+    expect(find.text('First'), findsNothing);
+    expect(find.text('Monday 31 August'), findsOneWidget);
+
+    await tester.tap(find.text('Monday 31 August'));
+    await tester.pump();
+    expect(find.text('First'), findsOneWidget);
+
+    await tester.tap(find.text('Wednesday 30 September'));
+    await tester.pump();
+    expect(find.text('Second'), findsNothing);
     expect(find.text('First'), findsOneWidget);
   });
 
@@ -126,5 +158,63 @@ void main() {
         find.ancestor(of: find.text(title), matching: find.byType(ListTile)));
     expect(tileOf('First').selected, isTrue);
     expect(tileOf('Second').selected, isFalse);
+  });
+
+  group('info button', () {
+    final song = Track.local(filePath: '/m/a.mp3', title: 'First', artist: 'Band');
+
+    Future<void> openSheet(WidgetTester tester) async {
+      history.entries.value = [entry('a', 'First', DateTime(2026, 9, 30, 7))];
+      await tester.pumpWidget(const MaterialApp(home: PlayHistoryPage()));
+      await tester.tap(find.byTooltip('Song info and options'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a library song offers info, queue, playlist and delete',
+        (tester) async {
+      MusicLibraryService.instance.tracks.value = [song];
+      final handler = MusicAudioHandler()
+        ..restore([Track.local(filePath: '/m/playing.mp3', title: 'Now')]);
+      MusicPlayerService.setHandlerForTest(handler);
+
+      await openSheet(tester);
+      for (final label in const [
+        'Song info',
+        'Play next',
+        'Add to queue',
+        'Add to playlist',
+        'Delete from history',
+      ]) {
+        expect(find.text(label), findsOneWidget, reason: label);
+      }
+
+      await tester.tap(find.text('Add to queue'));
+      await tester.pumpAndSettle();
+      expect(handler.currentQueueTracks.map((t) => t.id),
+          ['local:/m/playing.mp3', song.id]);
+      expect(find.text('Added to the queue'), findsOneWidget);
+    });
+
+    testWidgets('Song info opens the song\'s info page', (tester) async {
+      MusicLibraryService.instance.tracks.value = [song];
+      await openSheet(tester);
+
+      await tester.tap(find.text('Song info'));
+      await tester.pumpAndSettle();
+      expect(find.text('Track info'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'First'), findsOneWidget);
+    });
+
+    testWidgets('a song gone from the library can only be deleted',
+        (tester) async {
+      await openSheet(tester);
+
+      expect(find.textContaining('no longer in your library'), findsOneWidget);
+      expect(find.text('Song info'), findsNothing);
+      expect(find.text('Add to queue'), findsNothing);
+      await tester.tap(find.text('Delete from history'));
+      await tester.pumpAndSettle();
+      expect(find.text('First'), findsNothing);
+    });
   });
 }

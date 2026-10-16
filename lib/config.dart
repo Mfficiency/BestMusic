@@ -180,6 +180,10 @@ class Config {
   /// Which of those was playing last: 'music', 'video' or '' (nothing yet).
   static String phoneVolumeKind = '';
 
+  /// Now Playing's repeat button: 'off', 'all' or 'one'
+  /// (`MusicRepeatMode`).
+  static String musicRepeatMode = 'off';
+
   /// Base URL of a self-hosted Subsonic/OpenSubsonic-compatible server
   /// (Navidrome, Airsonic, Gonic, …), e.g. `https://music.example.com`.
   /// Empty means the Music Player only plays from [musicFolder].
@@ -277,6 +281,7 @@ class Config {
       'musicPhoneVolume': musicPhoneVolume,
       'videoPhoneVolume': videoPhoneVolume,
       'phoneVolumeKind': phoneVolumeKind,
+      'musicRepeatMode': musicRepeatMode,
       'subsonicServerUrl': subsonicServerUrl,
       'subsonicUsername': subsonicUsername,
       'subsonicPassword': subsonicPassword,
@@ -337,6 +342,7 @@ class Config {
             .toDouble() ??
         videoPhoneVolume;
     phoneVolumeKind = data['phoneVolumeKind'] as String? ?? phoneVolumeKind;
+    musicRepeatMode = data['musicRepeatMode'] as String? ?? musicRepeatMode;
     subsonicServerUrl =
         data['subsonicServerUrl'] as String? ?? subsonicServerUrl;
     subsonicUsername = data['subsonicUsername'] as String? ?? subsonicUsername;

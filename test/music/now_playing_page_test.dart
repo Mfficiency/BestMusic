@@ -116,4 +116,17 @@ void main() {
     await tester.pump();
     expect(MusicPlaylistService.instance.byId('p1')!.trackIds, [song.id]);
   });
+
+  testWidgets('elapsed time, bar and length are on one line', (tester) async {
+    final song = Track.local(filePath: '/fake/one-line.mp3', title: 'Song');
+    MusicPlayerService.handler.restore([song]);
+    await tester.pumpWidget(const MaterialApp(home: NowPlayingPage()));
+    await tester.pumpAndSettle();
+
+    final slider = tester.getCenter(find.byType(Slider)).dy;
+    expect(tester.getCenter(find.text('00:00')).dy, closeTo(slider, 2));
+    // Length not known yet: an empty bar, not a full one.
+    expect(find.text('--:--'), findsOneWidget);
+    expect(tester.widget<Slider>(find.byType(Slider)).value, 0);
+  });
 }

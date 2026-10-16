@@ -189,8 +189,9 @@ class _LyricsViewState extends State<LyricsView> {
       case LyricsStatus.unavailable:
         return _Message(
           icon: Icons.cloud_off_outlined,
-          text: "Couldn't reach the lyrics service. Check the connection "
-              'and try again.',
+          text: "Couldn't reach the lyrics service (LRCLIB). Check the "
+              'connection and try again.'
+              '${lookup.reason == null ? '' : '\n\n(${lookup.reason})'}',
           action: 'Try again',
           onAction: () => _fetch(refresh: true),
         );

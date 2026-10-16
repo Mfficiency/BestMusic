@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../models/lyrics.dart';
 import '../models/track.dart';
+import 'log_service.dart';
 import 'music_online_metadata.dart';
 import 'safe_file.dart';
 
@@ -34,10 +35,14 @@ enum LyricsStatus {
 }
 
 class LyricsLookup {
-  const LyricsLookup(this.status, [this.lyrics]);
+  const LyricsLookup(this.status, [this.lyrics, this.reason]);
 
   final LyricsStatus status;
   final Lyrics? lyrics;
+
+  /// For [LyricsStatus.unavailable]: what went wrong, in a few words
+  /// ("no answer within 15 s", "server error 503", ...).
+  final String? reason;
 }
 
 /// Lyrics for Now Playing's lyrics page, looked for in this order:
@@ -106,8 +111,10 @@ class LyricsService {
     final LyricsLookup found;
     try {
       found = await _fromLrclib(track, duration);
-    } on _Unavailable {
-      return const LyricsLookup(LyricsStatus.unavailable);
+    } on _Unavailable catch (e) {
+      LogService.add('Lyrics',
+          'LRCLIB unreachable for "${track.displayTitle}": ${e.reason}');
+      return LyricsLookup(LyricsStatus.unavailable, null, e.reason);
     }
     await _writeCache(track.id, found);
     return found;
@@ -247,9 +254,10 @@ class LyricsService {
 
   Future<LyricsLookup> _fromLrclib(Track track, Duration? duration) async {
     final durationMs = duration?.inMilliseconds ?? track.durationMs;
+    final (artist, title) = splitForLyrics(track.displayArtist, track.displayTitle);
     final variants = queryVariants(TrackQuery(
-      title: track.displayTitle,
-      artist: track.displayArtist,
+      title: title,
+      artist: artist,
       durationMs: durationMs,
     ));
     if (variants.isEmpty) return const LyricsLookup(LyricsStatus.notFound);
@@ -301,6 +309,17 @@ class LyricsService {
     return const LyricsLookup(LyricsStatus.notFound);
   }
 
+  /// Artist and title to search for: as given, or — with no artist — from
+  /// a name like "Artist ●● Song", "Artist • Song", "Artist | Song" or
+  /// "Artist: Song" (YouTube uploads; "Artist - Song" is already split by
+  /// `Track.displayTitle`).
+  static (String, String) splitForLyrics(String artist, String title) {
+    if (artist.trim().isNotEmpty) return (artist, title);
+    final m = RegExp(r'^(.+?)\s*(?:[●•·]+|\||:)\s*(.+)$').firstMatch(title);
+    if (m == null) return (artist, title);
+    return (m.group(1)!.trim(), m.group(2)!.trim());
+  }
+
   static LyricsLookup? _lookupFrom(Map<String, dynamic> record) {
     if (record['instrumental'] == true) {
       return const LyricsLookup(LyricsStatus.instrumental);
@@ -321,18 +340,26 @@ class LyricsService {
   /// The decoded JSON, or null for "not there" (404 and other client
   /// errors); throws [_Unavailable] when LRCLIB can't be reached.
   Future<Object?> _getJson(Uri uri) async {
-    final http.Response response;
-    try {
-      response = await _client.get(uri, headers: {
-        'User-Agent': userAgent,
-        'Lrclib-Client': userAgent,
-        'Accept': 'application/json',
-      }).timeout(_timeout);
-    } catch (_) {
-      throw const _Unavailable();
+    http.Response? response;
+    // One retry: a slow first answer (LRCLIB's search can take a while,
+    // or the phone is just waking its connection) isn't "offline" yet.
+    for (var attempt = 0; response == null; attempt++) {
+      try {
+        response = await _client.get(uri, headers: {
+          'User-Agent': userAgent,
+          'Lrclib-Client': userAgent,
+          'Accept': 'application/json',
+        }).timeout(_timeout);
+      } on TimeoutException {
+        if (attempt > 0) {
+          throw _Unavailable('no answer within ${_timeout.inSeconds} s');
+        }
+      } catch (e) {
+        if (attempt > 0) throw _Unavailable(_short(e));
+      }
     }
     if (response.statusCode == 429 || response.statusCode >= 500) {
-      throw const _Unavailable();
+      throw _Unavailable('server error ${response.statusCode}');
     }
     if (response.statusCode != 200) return null;
     try {
@@ -351,5 +378,15 @@ class _Candidate {
 }
 
 class _Unavailable implements Exception {
-  const _Unavailable();
+  const _Unavailable(this.reason);
+
+  final String reason;
+}
+
+/// The first line of an error, without Dart's exception class prefix.
+String _short(Object e) {
+  final text = '$e'.split('\n').first.trim();
+  final colon = text.indexOf(': ');
+  final shown = colon > 0 && colon < 40 ? text.substring(colon + 2) : text;
+  return shown.length > 120 ? '${shown.substring(0, 120)}…' : shown;
 }

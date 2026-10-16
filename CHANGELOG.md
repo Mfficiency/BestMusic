@@ -5,6 +5,10 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.56] - 2026-10-16
+- Now Playing: the time played, the progress bar and the song's length are now on one line. Before the song's length is known the bar stays empty instead of showing full.
+- Lyrics: when the lyrics service can't be reached, it now tries once more, and the message says what went wrong (also in the app's logs). Songs named like "Artist ●● Song" (no artist tag) are now looked up as that artist and song.
+
 ## [0.3.55] - 2026-10-16
 - Now Playing: tap ⓘ and everything moves up. The song's name goes to a small header at the top, the play controls stay where they are, and the bottom half shows two tabs you can scroll: Lyrics and Info (the song's details, with Edit info). Tap ⓘ again to go back to the big view. The separate Lyrics button is gone.
 

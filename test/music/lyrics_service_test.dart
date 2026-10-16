@@ -199,6 +199,60 @@ void main() {
     expect((await service().lyricsFor(video)).status, LyricsStatus.notASong);
     expect(requests, isEmpty);
   });
+
+  test('a slow or failed first request is tried once more', () async {
+    var calls = 0;
+    final svc = LyricsService(
+      client: MockClient((request) async {
+        calls++;
+        if (calls == 1) throw http.ClientException('Connection reset');
+        return json({
+          'trackName': 'One More Time',
+          'artistName': 'Daft Punk',
+          'plainLyrics': 'Second try',
+        });
+      }),
+      cacheDir: () async => Directory('${tempDir.path}/lyrics'),
+      clock: () => now,
+    );
+    final found = await svc.lyricsFor(song);
+    expect(found.status, LyricsStatus.found);
+    expect(found.lyrics!.plain, 'Second try');
+    expect(calls, 2);
+  });
+
+  test('unreachable twice: says why', () async {
+    final svc = LyricsService(
+      client: MockClient(
+          (request) async => throw http.ClientException('Failed host lookup')),
+      cacheDir: () async => Directory('${tempDir.path}/lyrics'),
+      clock: () => now,
+    );
+    final found = await svc.lyricsFor(song);
+    expect(found.status, LyricsStatus.unavailable);
+    expect(found.reason, contains('Failed host lookup'));
+
+    answer = (_) => http.Response('down', 503);
+    expect((await service().lyricsFor(song)).reason, 'server error 503');
+  });
+
+  test('"Artist ●● Song" names are searched as artist and song', () async {
+    expect(LyricsService.splitForLyrics('', 'RÜFÜS DU SOL ●● Underwater'),
+        ('RÜFÜS DU SOL', 'Underwater'));
+    expect(LyricsService.splitForLyrics('', 'Artist • Song'), ('Artist', 'Song'));
+    expect(LyricsService.splitForLyrics('', 'Artist | Song'), ('Artist', 'Song'));
+    expect(LyricsService.splitForLyrics('Tagged', 'A ●● B'), ('Tagged', 'A ●● B'));
+    expect(LyricsService.splitForLyrics('', 'Just a title'), ('', 'Just a title'));
+
+    final video = Track.local(
+        filePath: '/nowhere/x.m4a',
+        title: 'RÜFÜS DU SOL ●● Underwater [Official Audio]');
+    await service().lyricsFor(video);
+    final search =
+        requests.firstWhere((u) => u.path == '/api/get' || u.path == '/api/search');
+    expect(search.queryParameters['artist_name'], 'RÜFÜS DU SOL');
+    expect(search.queryParameters['track_name'], 'Underwater');
+  });
 }
 
 /// An ID3v2.3 tag holding one USLT frame with [text] (ISO-8859-1).

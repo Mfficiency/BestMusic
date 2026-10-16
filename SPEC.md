@@ -2349,3 +2349,18 @@ app run opens the same way). The separate Lyrics button is gone.
   Tests: `test/music/lyrics_view_test.dart` (ⓘ opens the panel above which the controls stay,
   Info tab, closing, the panel on a 320×640 screen), `test/music/now_playing_page_test.dart`.
 
+### 10.6af Progress bar on one line, lyrics lookup says why it failed (Best Music 0.3.56)
+
+- Now Playing's `_ProgressBar` is one row: elapsed time, the `Slider`, the length (small text),
+  so it takes one line instead of two (the ⓘ panel gets the room). While the length isn't
+  known yet the bar is empty and the length reads "--:--" (it used to show a full bar and
+  "00:00").
+- `LyricsService`: each LRCLIB request is tried once more after a timeout or connection error;
+  when it still fails the lookup carries a `reason` ("no answer within 15 s", "server error
+  503", the connection error's first line), shown in brackets under "Couldn't reach the
+  lyrics service (LRCLIB)" and written to the app log (source "Lyrics").
+- `LyricsService.splitForLyrics`: a song with no artist whose name is "Artist ●● Song",
+  "Artist • Song", "Artist | Song" or "Artist: Song" (YouTube uploads) is searched as that
+  artist and song.
+  Tests: `test/music/now_playing_page_test.dart`, `test/music/lyrics_service_test.dart`.
+

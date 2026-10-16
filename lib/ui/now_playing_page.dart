@@ -542,26 +542,27 @@ class _ProgressBar extends StatelessWidget {
         final position = state?.position ?? Duration.zero;
         final item = handler.mediaItem.valueOrNull;
         final duration = item?.duration ?? Duration.zero;
-        final max = duration.inMilliseconds > 0
-            ? duration.inMilliseconds.toDouble()
-            : 1.0;
-        final value = position.inMilliseconds.clamp(0, max.round()).toDouble();
-        return Column(
+        final known = duration.inMilliseconds > 0;
+        final max = known ? duration.inMilliseconds.toDouble() : 1.0;
+        // Until the length is known the bar stays empty rather than full.
+        final value = known
+            ? position.inMilliseconds.clamp(0, max.round()).toDouble()
+            : 0.0;
+        final timeStyle = Theme.of(context).textTheme.bodySmall;
+        // One line: elapsed time, the bar, total time.
+        return Row(
           children: [
-            Slider(
-              value: value,
-              max: max,
-              onChanged: duration.inMilliseconds > 0
-                  ? (v) => handler.seek(Duration(milliseconds: v.round()))
-                  : null,
+            Text(_format(position), style: timeStyle),
+            Expanded(
+              child: Slider(
+                value: value,
+                max: max,
+                onChanged: known
+                    ? (v) => handler.seek(Duration(milliseconds: v.round()))
+                    : null,
+              ),
             ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(_format(position)),
-                Text(_format(duration)),
-              ],
-            ),
+            Text(known ? _format(duration) : '--:--', style: timeStyle),
           ],
         );
       },

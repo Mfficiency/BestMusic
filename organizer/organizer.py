@@ -27,7 +27,7 @@ def main():
     cfg = Config(args.local)
     httpd = serve(cfg, args.port)
     url = "http://127.0.0.1:%d/" % httpd.server_address[1]
-    print("Best Music Organizer on %s  (Ctrl+C to stop)" % url, flush=True)
+    print("Best Music Organizer (bulk library organiser / sorter / filter) on %s  (Ctrl+C to stop)" % url, flush=True)
     app = httpd.RequestHandlerClass.app
     if cfg.music and os.path.isdir(cfg.music):
         app.start_scan()

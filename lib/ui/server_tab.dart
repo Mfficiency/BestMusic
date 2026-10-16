@@ -19,6 +19,7 @@ import 'now_playing_page.dart';
 import 'remaining_time_text.dart';
 import 'subpage_app_bar.dart';
 import 'track_file_menu.dart';
+import 'track_selection_bar.dart';
 
 /// The Server tab: the music server's folders (e.g. the Navidrome on the
 /// MagicMirror Pi), where every folder and song can be kept on this phone or
@@ -68,7 +69,7 @@ Widget _stateIcon(OfflineState state) => switch (state) {
 
 /// One server folder: its subfolders and songs, each with its offline state
 /// and a menu to keep it on this phone or free up space.
-class ServerFolderView extends StatelessWidget {
+class ServerFolderView extends StatefulWidget {
   const ServerFolderView(
       {super.key, required this.path, this.showHeader = false});
 
@@ -77,6 +78,16 @@ class ServerFolderView extends StatelessWidget {
 
   /// The top shows the server status, Sync now and Upload phone music.
   final bool showHeader;
+
+  @override
+  State<ServerFolderView> createState() => _ServerFolderViewState();
+}
+
+/// Songs can be selected like in every song list ([TrackSelection]).
+class _ServerFolderViewState extends State<ServerFolderView>
+    with TrackSelection<ServerFolderView> {
+  String get path => widget.path;
+  bool get showHeader => widget.showHeader;
 
   @override
   Widget build(BuildContext context) {
@@ -94,7 +105,12 @@ class ServerFolderView extends StatelessWidget {
       builder: (context, _) {
         final all = ServerCatalog.instance.songs.value;
         final folder = ServerCatalog.folder(all, path);
-        return ListView(
+        keepSelectedIn(folder.songs);
+        return selectionScope(
+          child: Column(children: [
+          if (selecting) selectionBar(folder.songs),
+          Expanded(
+          child: ListView(
           children: [
             if (showHeader) _ServerHeader(songCount: all.length),
             if (offline.progress.value case final p?)
@@ -135,6 +151,9 @@ class ServerFolderView extends StatelessWidget {
             for (var i = 0; i < folder.songs.length; i++)
               _songTile(context, folder.songs, i),
           ],
+        ),
+          ),
+          ]),
         );
       },
     );
@@ -146,9 +165,9 @@ class ServerFolderView extends StatelessWidget {
     return NowPlayingHighlight(
       trackId: song.id,
       builder: (context, isCurrent) => ListTile(
-        selected: isCurrent,
-        leading:
-            isCurrent ? nowPlayingIcon : const Icon(Icons.music_note_outlined),
+        selected: isCurrent || isSelected(song),
+        leading: selectionLeading(context, song,
+            isCurrent ? nowPlayingIcon : const Icon(Icons.music_note_outlined)),
         title: Text(song.displayTitle,
             maxLines: 1, overflow: TextOverflow.ellipsis),
         subtitle: Text(song.displayArtist,
@@ -161,12 +180,13 @@ class ServerFolderView extends StatelessWidget {
               name: song.title,
               song: song),
         ]),
-        onTap: () async {
+        onTap: selectionTap(song, () async {
           if (!await SpeakerPlayGuard.confirmPlay(context)) return;
           await MusicPlayerService.playQueue(songs, startIndex: index);
           if (context.mounted)
             Navigator.of(context).push(NowPlayingPage.route());
-        },
+        }),
+        onLongPress: () => toggleSelected(song),
       ),
     );
   }

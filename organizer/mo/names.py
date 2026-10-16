@@ -63,7 +63,9 @@ def clean_title(title):
 
 def split_artist_title(text, fallback_artist=""):
     """'Artist - Title' -> (artist, title); otherwise (fallback_artist, text)."""
-    t = strip_junk(text or "") or (text or "").strip()
+    # File names often use underscores for spaces ("kygo_-_stole_the_show").
+    text = re.sub(r"\s+", " ", (text or "").replace("_", " ")).strip()
+    t = strip_junk(text) or text
     m = _SPLIT.match(t)
     if m and m.group(1).strip() and m.group(2).strip():
         return m.group(1).strip(), m.group(2).strip()

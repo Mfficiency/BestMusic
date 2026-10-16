@@ -674,9 +674,14 @@ function getView(main, kind) {
     artist: { title: "An artist's top songs", help: "The artist's most played songs (from Deezer's charts).",
       form: `<input type="text" name="artist" placeholder="Artist" list="dl-artist" size="30"> Top <input type="number" name="count" value="10" min="1" max="100" style="width:64px"><button class="primary go">Find</button>${datalists()}`,
       body: (f) => ({ artist: f.artist.value, count: f.count.value }) },
-    chart: { title: "Charts", help: "A country's chart right now (Deezer). For a past year or another chart, use Ask for a list.",
-      form: `<select name="country">${S.state.countries.map((c) => `<option>${esc(c)}</option>`).join("")}</select> Top <input type="number" name="count" value="50" min="1" max="100" style="width:64px"><button class="primary go">Get chart</button>`,
-      body: (f) => ({ country: f.country.value, count: f.count.value }) },
+    chart: { title: "Charts", help: "A country's chart right now (Deezer), or its official chart of a year (Claude looks that one up, so it needs the API key in Settings).",
+      form: `<select name="country">${S.state.countries.map((c) => `<option>${esc(c)}</option>`).join("")}</select> Top <input type="number" name="count" value="50" min="1" max="100" style="width:64px">
+        <select name="period" title="Period"><option value="">right now</option>${yearOptions()}</select><button class="primary go">Get chart</button>`,
+      // A year's chart isn't on Deezer: it becomes an Ask-for-a-list prompt.
+      source: (f) => (f.period.value ? "ask" : "chart"),
+      body: (f) => f.period.value
+        ? { prompt: yearChartPrompt(f.country.value, f.count.value, f.period.value) }
+        : { country: f.country.value, count: f.count.value } },
     ask: { title: "Ask for a list", help: "Describe the list in your own words. Claude looks it up on the web (official charts, streaming numbers) and you check it before downloading.",
       form: `<textarea name="prompt" placeholder="e.g. The top 10 songs of the Belgian Ultratop year chart 2026&#10;The 15 most streamed songs of Dua Lipa&#10;20 Belgian summer hits from the 2000s" style="min-height:80px"></textarea><button class="primary go">Make the list</button>`,
       body: (f) => ({ prompt: f.prompt.value }) },
@@ -691,10 +696,11 @@ function getView(main, kind) {
   if (S.candidates?.kind === kind) showCandidates(main, S.candidates.songs, S.candidates.summary);
   const go = async () => {
     const st = $(".status", main);
-    st.textContent = kind === "ask" ? "Claude is looking this up (can take a minute)…" : "Looking…";
+    const source = F.source ? F.source(form) : kind;
+    st.textContent = source === "ask" ? "Claude is looking this up (can take a minute)…" : "Looking…";
     $(".go", main).disabled = true;
     try {
-      let r = await api(`/api/source/${kind}`, F.body(form));
+      let r = await api(`/api/source/${source}`, F.body(form));
       if (r.id && r.status) r = await waitJob(r, (j) => (st.textContent = j.message || st.textContent));
       st.textContent = r.summary || "";
       S.candidates = { kind, songs: r.songs, summary: r.summary };
@@ -705,6 +711,17 @@ function getView(main, kind) {
   $(".go", main).addEventListener("click", go);
   form.querySelectorAll("input").forEach((i) => i.addEventListener("keydown", (e) => e.key === "Enter" && go()));
   form.querySelector("input,textarea")?.focus();
+}
+
+/** This year and the 15 before it, newest first, for the Charts period picker. */
+function yearOptions() {
+  const now = new Date().getFullYear();
+  return Array.from({ length: 16 }, (_, i) => `<option value="${now - i}">year ${now - i}${i === 0 ? " so far" : ""}</option>`).join("");
+}
+
+function yearChartPrompt(country, count, year) {
+  const soFar = +year === new Date().getFullYear() ? " (the year so far: the official year-to-date ranking if there is one, otherwise the songs that charted highest and longest this year)" : "";
+  return `The top ${count} songs of ${country}'s official year-end singles chart for ${year}${soFar}, in chart order. For Belgium use the Ultratop (Flanders) year chart.`;
 }
 
 function showCandidates(main, songs, summary) {

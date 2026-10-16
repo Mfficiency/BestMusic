@@ -1,5 +1,16 @@
 # CLAUDE.md — AI working guide for Best Music
 
+## Every request ends on `dev` (standing rule from the owner)
+
+Any request that changes files is finished only when the work is **merged into
+`dev` and pushed**, without being asked: commit on the working branch, merge
+`origin/dev` into it (resolve conflicts, keep both sides' intent), run the repo's
+checks, then merge the branch into `dev` and `git push origin dev`. Report the
+`dev` commit. `staging`/`main` only when the request says so. If the merge or
+push can't be done, say exactly why. `.claude/hooks/require-merged-to-dev.sh` (a Stop
+hook in `.claude/settings.json`) blocks stopping while commits or tracked changes
+are not on `dev`.
+
 Flutter music app (Android-first; Windows desktop used for tests/screenshots). Read
 `SPEC.md` for the specification and history ("The split" at the top says how this repo
 relates to BestToDo, where it came from).
@@ -20,7 +31,8 @@ relates to BestToDo, where it came from).
   installs from before the split).
 - Version bump: `dart run tool/bump_version.dart <x.y.z> "<changelog entry>"` (pubspec.yaml +
   CHANGELOG.md).
-- Organizer (computer-side Python tool in `organizer/`, see its README and SPEC.md §10.6s):
+- Organizer (part 3 of Best Music, the computer music bulk library organiser/sorter/filter tool;
+  Python, in `organizer/`, see its README and SPEC.md §10.6s; README.md lists the 3 parts):
   `python -m unittest discover -s organizer/tests` (needs ffmpeg); run with
   `python organizer/organizer.py`.
 - Live checks (network, not part of `flutter test`): `flutter test tool/check_mp3_download.dart`,
@@ -30,7 +42,10 @@ relates to BestToDo, where it came from).
 
 1. Bump version + CHANGELOG entry for every feature batch (user-facing bullets).
 2. Commit to `dev`, push. Branch flow: feature → dev → staging → main; each push ships that
-   channel.
+   channel. **Always merge finished work into `dev` and push it, without asking** — the owner
+   has said so explicitly ("Always always merge!"). Working on a feature branch is fine, but
+   every finished change ends merged into `dev` (resolve version/CHANGELOG conflicts by taking
+   the next free version number) with full tests green first.
 3. Keep `SPEC.md` updated when adding/changing features.
 
 ## Architecture in one minute

@@ -1,5 +1,16 @@
 # CLAUDE.md — AI working guide for Best Music
 
+## Every request ends on `dev` (standing rule from the owner)
+
+Any request that changes files is finished only when the work is **merged into
+`dev` and pushed**, without being asked: commit on the working branch, merge
+`origin/dev` into it (resolve conflicts, keep both sides' intent), run the repo's
+checks, then merge the branch into `dev` and `git push origin dev`. Report the
+`dev` commit. `staging`/`main` only when the request says so. If the merge or
+push can't be done, say exactly why. `.claude/hooks/require-merged-to-dev.sh` (a Stop
+hook in `.claude/settings.json`) blocks stopping while commits or tracked changes
+are not on `dev`.
+
 Flutter music app (Android-first; Windows desktop used for tests/screenshots). Read
 `SPEC.md` for the specification and history ("The split" at the top says how this repo
 relates to BestToDo, where it came from).

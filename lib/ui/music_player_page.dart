@@ -938,6 +938,7 @@ class _PlaylistsTab extends StatelessWidget {
 
   IconData _iconFor(MusicPlaylist playlist) {
     if (playlist.id == MusicPlaylist.favoritesId) return Icons.favorite;
+    if (playlist.id == MusicPlaylist.likedId) return Icons.thumb_up;
     if (playlist.id == MusicPlaylist.dislikedId) return Icons.thumb_down_alt;
     switch (playlist.kind) {
       case PlaylistKind.lastAdded:
@@ -1066,6 +1067,9 @@ class MusicPlaylistDetailPage extends StatelessWidget {
         // playlist is recomputed, and Favorites/"Don't really like" are
         // toggled via the heart/dislike gesture instead.
         final editable = current.kind == PlaylistKind.list && !current.isSystem;
+        // Liked songs has no "un-swipe": a song leaves it from here.
+        final removable =
+            editable || current.id == MusicPlaylist.likedId;
         return Scaffold(
           appBar: buildSubpageAppBar(
             context,
@@ -1104,7 +1108,7 @@ class MusicPlaylistDetailPage extends StatelessWidget {
                 // Its own order (dragged on Edit songs, or a smart list's
                 // computed order) is one of the sort choices.
                 listOrder: true,
-                onRemove: editable
+                onRemove: removable
                     ? (track) =>
                         MusicPlaylistService.instance.removeFrom(current.id, track.id)
                     : null,

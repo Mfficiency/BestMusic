@@ -69,8 +69,8 @@ void main() {
     expect(handler.currentTrack!.id, NowPlaying.trackId.value);
   });
 
-  test('swipe up counts every swipe and favorites, never un-favorites',
-      () async {
+  test('swipe up counts every swipe and puts the song in Liked songs, '
+      'not Favorites', () async {
     await MusicPlaylistService.instance.load();
     final handler = handlerWithQueue();
     MusicLibraryService.instance.tracks.value = handler.currentQueueTracks;
@@ -79,7 +79,9 @@ void main() {
     await handler.swipeUpCurrent();
     await handler.swipeUpCurrent();
 
-    expect(MusicPlaylistService.instance.isFavorite(id), isTrue);
+    expect(MusicPlaylistService.instance.isLiked(id), isTrue);
+    expect(MusicPlaylistService.instance.liked.trackIds, [id]);
+    expect(MusicPlaylistService.instance.isFavorite(id), isFalse);
     expect(MusicLibraryService.instance.byId(id)!.upSwipeCount, 2);
   });
 

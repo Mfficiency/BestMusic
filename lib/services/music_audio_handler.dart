@@ -825,15 +825,13 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
     await MusicPlaylistService.instance.toggleFavorite(track.id);
   }
 
-  /// Swipe-up on Now Playing: counts a swipe up and makes sure the track
-  /// is in Favorites (never takes it out, unlike the heart button).
+  /// Swipe-up on Now Playing: counts a swipe up and puts the track in
+  /// Liked songs (Favorites is the heart button's, and stays as it is).
   Future<void> swipeUpCurrent() async {
     final track = currentTrack;
     if (track == null) return;
     unawaited(MusicLibraryService.instance.incrementUpSwipeCount(track.id));
-    if (!MusicPlaylistService.instance.isFavorite(track.id)) {
-      await MusicPlaylistService.instance.toggleFavorite(track.id);
-    }
+    await MusicPlaylistService.instance.markLiked(track.id);
   }
 
   /// Swipe-down (or thumbs-down) on Now Playing: counts a swipe down,

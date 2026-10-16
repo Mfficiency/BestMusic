@@ -5,6 +5,11 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.52] - 2026-10-16
+- New "Liked songs" playlist: swiping up on Now Playing now puts the song there. Favorites is only for songs you heart (or add to Favorites yourself), so the two lists are separate.
+- Liked songs starts with the songs you've already swiped up. A liked song shows a thumbs-up under its title on Now Playing, and you can remove songs from Liked songs with ⋮ → Remove from playlist.
+- In shuffle, liked songs come up more often too (Favorites still the most).
+
 ## [0.3.51] - 2026-10-16
 - Song lists and playlists can be sorted by "Times played" (most played first, or least played first). Each song then shows how many times it was played.
 - Playlists can also be shown in their own order ("Playlist order"): the order you dragged them into on Edit songs, or the order of Last Added and Most Played.

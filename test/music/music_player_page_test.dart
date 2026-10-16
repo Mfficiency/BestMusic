@@ -415,6 +415,37 @@ void main() {
       expect(find.text('Remove from playlist'), findsNothing);
     });
 
+    testWidgets('Liked songs lets a song be removed (no un-swipe gesture)',
+        (tester) async {
+      Config.musicFolder = '/does/not/matter/for/this/test';
+      final song =
+          Track.local(filePath: '/does/not/matter/song.mp3', title: 'Song');
+      MusicLibraryService.instance.tracks.value = [song];
+      MusicPlaylistService.instance.playlists.value = [
+        MusicPlaylist.favorites(),
+        MusicPlaylist.liked()..trackIds.add(song.id),
+        MusicPlaylist.disliked(),
+      ];
+
+      await tester.pumpWidget(const MaterialApp(home: MusicPlayerPage()));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Playlists'));
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.thumb_up), findsOneWidget);
+      await tester.tap(find.text('Liked songs'));
+      await tester.pumpAndSettle();
+      // A system list: no "+" and no rename/delete menu.
+      expect(find.byTooltip('Add songs'), findsNothing);
+      expect(find.byTooltip('Playlist options'), findsNothing);
+      await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove from playlist'));
+      await drainIo(tester);
+      await tester.pumpAndSettle();
+
+      expect(MusicPlaylistService.instance.liked.trackIds, isEmpty);
+    });
+
     testWidgets(
         "playlist detail page's + button adds selected songs in one go",
         (tester) async {

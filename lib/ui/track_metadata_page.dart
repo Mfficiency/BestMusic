@@ -179,7 +179,8 @@ class _TrackMetadataPageState extends State<TrackMetadataPage> {
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Text(
                         'Shuffle puts songs with a higher weight earlier: '
-                        'Favorites ×3, "Don\'t really like" ×0.05, times '
+                        'Favorites ×3, Liked songs ×2, "Don\'t really '
+                        'like" ×0.05, times '
                         'what you did with the song — plays and swipes up '
                         'raise it, skips and swipes down lower it.',
                         style: Theme.of(context).textTheme.bodySmall,

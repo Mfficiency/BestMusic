@@ -2216,3 +2216,20 @@ order). The choice is shared through `Config.musicTrackSortField` like the other
 isn't a playlist shows "Added to device" while "Playlist order" is the remembered choice
 (`_shownField`). Tests: `test/music/music_player_page_test.dart` (track sorting).
 
+### 10.6ab Liked songs, separate from Favorites (Best Music 0.3.52)
+
+A third system playlist, `MusicPlaylist.liked()` (id `liked`, "Liked songs", icon `thumb_up`),
+kept between Favorites and "Don't really like". Swipe up on Now Playing
+(`MusicAudioHandler.swipeUpCurrent`) counts the swipe and calls
+`MusicPlaylistService.markLiked` (into Liked songs, out of "Don't really like"); it no longer
+touches Favorites, which only the heart button / ⋮ "Add to Favorites" / Add to playlist fill.
+`markDisliked` also takes a song out of Liked songs. `load` adds Liked songs to an older
+playlists file, filled with the library songs that have `upSwipeCount > 0` (swipe-ups are
+counted since 0.3.45; before 0.3.52 they went into Favorites, which keeps them). Shuffle weight:
+`likedWeight` 2 (Favorites 3 wins when both). Now Playing flashes "Added to Liked songs", the
+hint reads "Swipe up to like • swipe down to skip & dislike", and a liked song shows a
+thumbs-up next to the Favorites heart under its title. Liked songs' page offers "Remove from
+playlist" per song (there is no un-swipe); it stays a system list (no add, rename or delete).
+Tests: `music_playlist_service_test.dart`, `music_audio_handler_test.dart`,
+`music_player_page_test.dart`.
+

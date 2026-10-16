@@ -134,6 +134,26 @@ void main() {
     });
   });
 
+  test('addAllToMusicQueue keeps the selected songs in order', () async {
+    final handler = handlerWithQueue(); // a (playing), b, c
+    await handler.addAllToMusicQueue([track('x'), track('y')],
+        playNext: true);
+    expect(ids(handler), [
+      'local:/fake/a.mp3',
+      'local:/fake/x.mp3',
+      'local:/fake/y.mp3',
+      'local:/fake/b.mp3',
+      'local:/fake/c.mp3',
+    ]);
+    await handler.addAllToMusicQueue([track('p'), track('q')]);
+    expect(ids(handler).skip(5), ['local:/fake/p.mp3', 'local:/fake/q.mp3']);
+
+    // Nothing loaded: they become the queue.
+    final empty = MusicAudioHandler();
+    await empty.addAllToMusicQueue([track('m'), track('n')]);
+    expect(ids(empty), ['local:/fake/m.mp3', 'local:/fake/n.mp3']);
+  });
+
   group('addToMusicQueue', () {
     test('play next goes right after the playing song, add to queue at '
         'the end', () async {

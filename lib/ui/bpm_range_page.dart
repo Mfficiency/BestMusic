@@ -13,6 +13,7 @@ import '../services/music_playlist_service.dart';
 import 'now_playing_highlight.dart';
 import 'remaining_time_text.dart';
 import 'subpage_app_bar.dart';
+import 'track_selection_bar.dart';
 
 /// The library songs whose BPM lies within [min]..[max], slowest first
 /// (then by title).
@@ -58,7 +59,8 @@ class BpmRangePage extends StatefulWidget {
   State<BpmRangePage> createState() => _BpmRangePageState();
 }
 
-class _BpmRangePageState extends State<BpmRangePage> {
+class _BpmRangePageState extends State<BpmRangePage>
+    with TrackSelection<BpmRangePage> {
   /// The picked range; null until the library's bounds are known.
   RangeValues? _range;
 
@@ -153,7 +155,7 @@ class _BpmRangePageState extends State<BpmRangePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return selectionScope(child: Scaffold(
       appBar: buildSubpageAppBar(context, title: 'Songs by BPM'),
       body: ValueListenableBuilder<List<Track>>(
         valueListenable: MusicLibraryService.instance.tracks,
@@ -163,6 +165,7 @@ class _BpmRangePageState extends State<BpmRangePage> {
           final range = _clamped(bounds);
           final min = range.start.round(), max = range.end.round();
           final list = tracksInBpmRange(library, min, max);
+          keepSelectedIn(list);
           final withoutBpm = library.where((t) => t.bpm == null).length;
           final theme = Theme.of(context);
           return Column(
@@ -240,7 +243,7 @@ class _BpmRangePageState extends State<BpmRangePage> {
                             ),
                           ),
               ),
-              const Divider(),
+              if (selecting) selectionBar(list) else const Divider(),
               Expanded(
                 child: list.isEmpty
                     ? const Center(
@@ -259,10 +262,13 @@ class _BpmRangePageState extends State<BpmRangePage> {
                           return NowPlayingHighlight(
                             trackId: t.id,
                             builder: (context, isCurrent) => ListTile(
-                              selected: isCurrent,
-                              leading: isCurrent
-                                  ? nowPlayingIcon
-                                  : const Icon(Icons.music_note),
+                              selected: isCurrent || isSelected(t),
+                              leading: selectionLeading(
+                                  context,
+                                  t,
+                                  isCurrent
+                                      ? nowPlayingIcon
+                                      : const Icon(Icons.music_note)),
                               title: Text(t.displayTitle,
                                   maxLines: 1, overflow: TextOverflow.ellipsis),
                               subtitle: t.displayArtist.isEmpty
@@ -271,7 +277,9 @@ class _BpmRangePageState extends State<BpmRangePage> {
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis),
                               trailing: Text('${t.bpm} BPM'),
-                              onTap: () => _play(list, startIndex: i),
+                              onTap: selectionTap(
+                                  t, () => _play(list, startIndex: i)),
+                              onLongPress: () => toggleSelected(t),
                             ),
                           );
                         },
@@ -311,7 +319,7 @@ class _BpmRangePageState extends State<BpmRangePage> {
           );
         },
       ),
-    );
+    ));
   }
 }
 

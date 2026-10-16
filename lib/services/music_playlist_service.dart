@@ -118,6 +118,20 @@ class MusicPlaylistService {
     }
   }
 
+  /// Puts every one of [trackIds] in Favorites (several selected songs),
+  /// and out of "Don't really like", like the heart does for one.
+  Future<void> addAllToFavorites(Iterable<String> trackIds) async {
+    final ids = trackIds.toList();
+    await addAllTo(MusicPlaylist.favoritesId, ids);
+    final disliked = byId(MusicPlaylist.dislikedId);
+    if (disliked == null) return;
+    final before = disliked.trackIds.length;
+    disliked.trackIds.removeWhere(ids.contains);
+    if (disliked.trackIds.length == before) return;
+    playlists.value = [...playlists.value];
+    await _save();
+  }
+
   /// Marks [trackId] as disliked (swipe-down on Now Playing). Idempotent —
   /// safe to call even if it's already in the list.
   Future<void> markDisliked(String trackId) async {

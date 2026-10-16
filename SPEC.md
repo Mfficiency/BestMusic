@@ -2292,3 +2292,37 @@ to fit (`FittedBox`) rather than overflowing.
   `test/music/lyrics_page_test.dart` (button, sung line, plain, messages, following the song,
   narrow phone), `test/music/music_audio_handler_test.dart` and
   `test/music/now_playing_page_test.dart` (repeat).
+
+### 10.6ad Selecting several songs (Best Music 0.3.54)
+
+Every song list can select songs and act on all of them at once. `TrackSelection`
+(`lib/ui/track_selection_bar.dart`, a mixin on the list's `State`) holds the selected ids:
+
+- **Starting** — a row's music icon (the note, the server cloud, or the now-playing icon) is
+  wrapped in an `InkResponse` with tooltip "Select" (`selectionLeading`); tapping it selects
+  that song. Long-pressing a row selects it too.
+- **While selecting** — the icons turn into a tick (`check_circle`, primary colour) or an empty
+  circle, selected rows are highlighted (`ListTile.selected`), a row tap selects/unselects
+  instead of playing (`selectionTap`), and the system back gesture ends the selection instead
+  of leaving the page (`selectionScope`, a `PopScope`). Songs that leave the list (deleted,
+  removed) drop out of the selection (`keepSelectedIn`).
+- **`TrackSelectionBar`** replaces the list's sort/play row (or the BPM page's divider, or sits
+  above a server folder's list): ✕ "Cancel selection", "N selected", "Select all" / "Select
+  none" (once all are selected), "Play selected" (plays them as the queue, in list order, and
+  opens Now Playing), "Add selected to playlist" (`showAddTracksToPlaylistSheet`: New playlist
+  with all of them, or tap a hand-made playlist to add them — `addAllTo`, no duplicates,
+  "Already in it" shown) and "More for selected": Play next / Add to queue
+  (`MusicAudioHandler.addAllToMusicQueue`: in list order; with nothing loaded they become the
+  queue), Add to Favorites (`MusicPlaylistService.addAllToFavorites`, also out of "Don't really
+  like"), Remove from playlist (only where `TrackListView.onRemove` is set: a hand-made
+  playlist's page), Move to folder (`pickFolderAndMoveTracks`: only when all are phone songs or
+  all server songs, `canMoveTogether`; the shared current folder isn't offered) and Delete
+  (`confirmAndDeleteTracks`: one "Delete N songs?" question, then each is deleted; a failure is
+  reported with how many went). Every action except Select all ends the selection.
+- **Where** — `TrackListView` (Tracks, Favourites, search results, artist/folder/tag pages,
+  playlist pages), Songs by BPM (`BpmRangePage`) and the server's folders (`ServerFolderView`,
+  now stateful). The queue (drag to reorder, its own remove) and Play history (its own per-entry
+  menu) keep their own handling.
+  Tests: `test/music/track_selection_test.dart`, `test/music/bpm_range_page_test.dart`,
+  `test/music/music_audio_handler_test.dart` (`addAllToMusicQueue`).
+

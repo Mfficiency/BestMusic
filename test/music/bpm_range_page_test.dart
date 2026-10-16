@@ -132,6 +132,19 @@ void main() {
       expect(find.text('Unknown'), findsNothing);
     });
 
+    testWidgets('songs can be selected by their music icon', (tester) async {
+      await tester.pumpWidget(const MaterialApp(home: BpmRangePage()));
+      await tester.tap(find.byTooltip('Select').first);
+      await tester.pumpAndSettle();
+      expect(find.text('1 selected'), findsOneWidget);
+      await tester.tap(find.text('Walk'));
+      await tester.pumpAndSettle();
+      expect(find.text('2 selected'), findsOneWidget);
+      await tester.tap(find.byTooltip('Select all'));
+      await tester.pumpAndSettle();
+      expect(find.text('5 selected'), findsOneWidget);
+    });
+
     testWidgets('dragging either end of the slider narrows the list',
         (tester) async {
       await tester.pumpWidget(const MaterialApp(home: BpmRangePage()));

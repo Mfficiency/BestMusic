@@ -40,6 +40,7 @@ import 'startup_times_page.dart';
 import 'server_tab.dart';
 import 'subpage_app_bar.dart';
 import 'track_file_menu.dart';
+import 'track_selection_bar.dart';
 import 'track_metadata_page.dart';
 import 'youtube_feed_page.dart';
 
@@ -1375,7 +1376,16 @@ class TrackListView extends StatefulWidget {
   State<TrackListView> createState() => _TrackListViewState();
 }
 
-class _TrackListViewState extends State<TrackListView> {
+/// While songs are selected ([TrackSelection]: tap a row's music icon, or
+/// long-press the row) [TrackSelectionBar] replaces the sort/play row.
+class _TrackListViewState extends State<TrackListView>
+    with TrackSelection<TrackListView> {
+  @override
+  void didUpdateWidget(TrackListView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    keepSelectedIn(widget.tracks);
+  }
+
   TrackSortField _sortField = TrackSortField.values.firstWhere(
     (f) => f.name == Config.musicTrackSortField,
     orElse: () => TrackSortField.deviceDate,
@@ -1429,8 +1439,20 @@ class _TrackListViewState extends State<TrackListView> {
   Widget build(BuildContext context) {
     final field = _shownField;
     final tracks = sortTracks(widget.tracks, field, ascending: _ascending);
-    return Column(
+    final onRemove = widget.onRemove;
+    return selectionScope(
+      child: Column(
       children: [
+        if (selecting)
+          selectionBar(tracks,
+              onRemove: onRemove == null
+                  ? null
+                  : (selected) {
+                      for (final t in selected) {
+                        onRemove(t);
+                      }
+                    })
+        else
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Row(
@@ -1528,8 +1550,9 @@ class _TrackListViewState extends State<TrackListView> {
                   final isFavorite =
                       MusicPlaylistService.instance.isFavorite(track.id);
                   return ListTile(
-                    selected: isCurrent,
-                    leading: isCurrent ? nowPlayingIcon : trackSourceIcon(track),
+                    selected: isCurrent || isSelected(track),
+                    leading: selectionLeading(context, track,
+                        isCurrent ? nowPlayingIcon : trackSourceIcon(track)),
                     title: Text(_trackDisplayTitle(track),
                         maxLines: 1, overflow: TextOverflow.ellipsis),
                     // Always two lines (matching the prototype row height).
@@ -1660,7 +1683,9 @@ class _TrackListViewState extends State<TrackListView> {
                           ),
                       ],
                     ),
-                    onTap: () => _play(tracks, startIndex: index),
+                    onTap: selectionTap(
+                        track, () => _play(tracks, startIndex: index)),
+                    onLongPress: () => toggleSelected(track),
                   );
                 },
                 ),
@@ -1669,6 +1694,7 @@ class _TrackListViewState extends State<TrackListView> {
           ),
         ),
       ],
+      ),
     );
   }
 }

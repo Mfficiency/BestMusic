@@ -520,6 +520,23 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
     _persist();
   }
 
+  /// [addToMusicQueue] for several songs at once (selected in a list),
+  /// keeping their order: with [playNext] they come right after the
+  /// playing song in this order, otherwise at the end. With nothing loaded
+  /// they become the (paused) queue.
+  Future<void> addAllToMusicQueue(List<Track> tracks,
+      {bool playNext = false}) async {
+    if (tracks.isEmpty) return;
+    if (currentTrack == null) {
+      restore(tracks);
+      _persist();
+      return;
+    }
+    for (final track in playNext ? tracks.reversed : tracks) {
+      await addToMusicQueue(track, playNext: playNext);
+    }
+  }
+
   /// How many videos after the playing one are downloaded ahead, so a
   /// queue keeps playing offline.
   static const int _videosAhead = 2;

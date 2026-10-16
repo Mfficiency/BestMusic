@@ -2364,3 +2364,21 @@ app run opens the same way). The separate Lyrics button is gone.
   artist and song.
   Tests: `test/music/now_playing_page_test.dart`, `test/music/lyrics_service_test.dart`.
 
+### 10.6ag No volume button on Now Playing (Best Music 0.3.57)
+
+Now Playing's tools row no longer has the volume button (tooltip "Music volume" / "Video
+volume"): the phone's volume keys change the volume, and the separate music and video volumes
+(`showVolumeSheet`, `MediaVolume`) are still set in Settings. The row is now speed (videos),
+sleep timer, shuffle, repeat, queue, add to playlist (songs) and ⓘ.
+- **Lyrics lookup, more robust (same release)** — `LyricsService._getJson` tries each LRCLIB
+  request up to 3 times (waiting 1 s, then 3 s: `retryDelays`) on a timeout (now 20 s), lost
+  connection, 429 or server error, instead of once. A request that still fails no longer ends
+  the lookup: the other requests (exact match, then the searches) carry on, and only when none
+  of them got an answer is the result "unavailable", with the actual reason — "No internet:
+  lrclib.net could not be found", "LRCLIB didn't answer within 20 s", "LRCLIB server error
+  503", "The connection to lrclib.net was cut off", … "(tried 3 times)" — shown as "Couldn't
+  get lyrics: <reason>." and logged. Found lyrics stay on the phone for good
+  (`lyrics/<sha1>.json`): they're shown without a connection ("Lyrics from LRCLIB · saved on
+  this phone", `LyricsLookup.saved`), and "Search again" / "Try again" falling offline or finding
+  nothing keeps showing the saved copy rather than throwing it away.
+

@@ -170,6 +170,29 @@ void main() {
     expect(find.textContaining('Instrumental'), findsOneWidget);
   });
 
+  testWidgets('a failed lookup shows the actual reason', (tester) async {
+    MusicPlayerService.handler.restore([song]);
+    final fake = _FakeLyrics(const LyricsLookup(LyricsStatus.unavailable, null,
+        'No internet: lrclib.net could not be found (tried 3 times)'));
+
+    await tester.pumpWidget(view(fake));
+    await tester.pumpAndSettle();
+    expect(
+        find.text("Couldn't get lyrics: No internet: lrclib.net could not "
+            'be found (tried 3 times).'),
+        findsOneWidget);
+  });
+
+  testWidgets('lyrics kept on the phone say so', (tester) async {
+    MusicPlayerService.handler.restore([song]);
+    final fake = _FakeLyrics(
+        LyricsLookup(LyricsStatus.found, synced(), null, true));
+
+    await tester.pumpWidget(view(fake));
+    await tester.pumpAndSettle();
+    expect(find.text('Lyrics from LRCLIB · saved on this phone'), findsOneWidget);
+  });
+
   testWidgets('follows the song: the next song gets its own lyrics',
       (tester) async {
     final other = Track.local(filePath: '/fake/other.mp3', title: 'Other');

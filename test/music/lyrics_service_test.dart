@@ -21,6 +21,7 @@ void main() {
         }),
         cacheDir: () async => Directory('${tempDir.path}/lyrics'),
         clock: () => now,
+        sleep: (_) async {},
       );
 
   http.Response json(Object body, [int status = 200]) => http.Response.bytes(
@@ -214,6 +215,7 @@ void main() {
       }),
       cacheDir: () async => Directory('${tempDir.path}/lyrics'),
       clock: () => now,
+      sleep: (_) async {},
     );
     final found = await svc.lyricsFor(song);
     expect(found.status, LyricsStatus.found);
@@ -221,19 +223,22 @@ void main() {
     expect(calls, 2);
   });
 
-  test('unreachable twice: says why', () async {
+  test('still unreachable after 3 tries: says exactly why', () async {
     final svc = LyricsService(
       client: MockClient(
           (request) async => throw http.ClientException('Failed host lookup')),
       cacheDir: () async => Directory('${tempDir.path}/lyrics'),
       clock: () => now,
+      sleep: (_) async {},
     );
     final found = await svc.lyricsFor(song);
     expect(found.status, LyricsStatus.unavailable);
-    expect(found.reason, contains('Failed host lookup'));
+    expect(found.reason,
+        'No internet: lrclib.net could not be found (tried 3 times)');
 
     answer = (_) => http.Response('down', 503);
-    expect((await service().lyricsFor(song)).reason, 'server error 503');
+    expect((await service().lyricsFor(song)).reason,
+        'LRCLIB server error 503 (tried 3 times)');
   });
 
   test('"Artist ●● Song" names are searched as artist and song', () async {
@@ -252,6 +257,68 @@ void main() {
         requests.firstWhere((u) => u.path == '/api/get' || u.path == '/api/search');
     expect(search.queryParameters['artist_name'], 'RÜFÜS DU SOL');
     expect(search.queryParameters['track_name'], 'Underwater');
+  });
+
+  test('server hiccups are retried before giving up', () async {
+    var calls = 0;
+    answer = (uri) {
+      calls++;
+      if (calls <= 2) return http.Response('busy', 502);
+      return json({
+        'trackName': 'One More Time',
+        'artistName': 'Daft Punk',
+        'plainLyrics': 'Third time lucky',
+      });
+    };
+    final found = await service().lyricsFor(song);
+    expect(found.status, LyricsStatus.found);
+    expect(found.lyrics!.plain, 'Third time lucky');
+  });
+
+  test('one failing request does not sink the lookup', () async {
+    // The exact match keeps failing; the search answers.
+    answer = (uri) => uri.path == '/api/get'
+        ? http.Response('down', 503)
+        : json([
+            {
+              'trackName': 'One More Time',
+              'artistName': 'Daft Punk',
+              'duration': 320,
+              'syncedLyrics': '[00:01.00]Found by search',
+            }
+          ]);
+    final found = await service().lyricsFor(song);
+    expect(found.status, LyricsStatus.found);
+    expect(found.lyrics!.lines.single.text, 'Found by search');
+  });
+
+  test('found lyrics are kept on the phone and used offline', () async {
+    answer = (_) => json({
+          'trackName': 'One More Time',
+          'artistName': 'Daft Punk',
+          'syncedLyrics': '[00:01.00]Kept',
+        });
+    final first = await service().lyricsFor(song);
+    expect(first.saved, isFalse);
+
+    // Offline from now on.
+    answer = (_) => throw http.ClientException('Failed host lookup');
+    requests.clear();
+    final again = await service().lyricsFor(song);
+    expect(again.status, LyricsStatus.found);
+    expect(again.saved, isTrue);
+    expect(again.lyrics!.lines.single.text, 'Kept');
+    expect(requests, isEmpty);
+
+    // "Search again" while offline keeps showing them.
+    final refreshed = await service().lyricsFor(song, refresh: true);
+    expect(refreshed.status, LyricsStatus.found);
+    expect(refreshed.lyrics!.lines.single.text, 'Kept');
+
+    // …and so does a search that finds nothing.
+    answer = (_) => http.Response('', 404);
+    final none = await service().lyricsFor(song, refresh: true);
+    expect(none.lyrics!.lines.single.text, 'Kept');
   });
 }
 

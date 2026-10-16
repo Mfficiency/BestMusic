@@ -14,7 +14,6 @@ import 'music_player_page.dart' show showAddToPlaylistSheet;
 import 'music_mini_player_bar.dart'
     show SwitchSessionButton, switchSessionAndShow;
 import 'playback_speed_sheet.dart';
-import 'volume_sheet.dart';
 import 'queue_page.dart';
 import 'sleep_timer_sheet.dart';
 import 'subpage_app_bar.dart';
@@ -435,9 +434,9 @@ class _DetailsPanelState extends State<_DetailsPanel>
   }
 }
 
-/// The rest of the controls, under the transport: speed (videos), volume,
-/// sleep timer, shuffle, repeat, queue, lyrics and add to playlist (songs)
-/// and track info. On a phone too narrow for all of them at full size the
+/// The rest of the controls, under the transport: speed (videos), sleep
+/// timer, shuffle, repeat, queue, add to playlist (songs) and ⓘ (the
+/// Lyrics / Info panel). On a phone too narrow for all of them at full size the
 /// row shrinks to fit rather than overflow.
 class _ToolsRow extends StatelessWidget {
   const _ToolsRow({required this.handler});
@@ -452,12 +451,8 @@ class _ToolsRow extends StatelessWidget {
       // Feed videos only: speed is a podcast/talk thing, not a
       // local-music one.
       PlaybackSpeedButton(visible: video),
-      // The phone's volume, remembered separately for music and videos.
-      IconButton(
-        icon: const Icon(Icons.volume_up_outlined),
-        tooltip: video ? 'Video volume' : 'Music volume',
-        onPressed: () => showVolumeSheet(context, video: video),
-      ),
+      // (No volume button: the phone's volume keys do that; the music and
+      // video volumes are set in Settings.)
       const SleepTimerButton(),
       ValueListenableBuilder<bool>(
         valueListenable: handler.shuffleEnabled,

@@ -38,7 +38,8 @@ void main() {
 
     expect(find.byTooltip('Shuffle off'), findsOneWidget);
     expect(find.byTooltip('Queue'), findsOneWidget);
-    expect(find.byTooltip('Music volume'), findsOneWidget);
+    // No volume button (Settings has the music/video volumes).
+    expect(find.byTooltip('Music volume'), findsNothing);
     expect(find.byTooltip('Sleep timer'), findsOneWidget);
     final screenHeight = tester.getSize(find.byType(Scaffold)).height;
     expect(tester.getCenter(find.byTooltip('Queue')).dy,

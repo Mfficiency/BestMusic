@@ -35,7 +35,7 @@ enum LyricsStatus {
 }
 
 class LyricsLookup {
-  const LyricsLookup(this.status, [this.lyrics, this.reason]);
+  const LyricsLookup(this.status, [this.lyrics, this.reason, this.saved = false]);
 
   final LyricsStatus status;
   final Lyrics? lyrics;
@@ -43,6 +43,9 @@ class LyricsLookup {
   /// For [LyricsStatus.unavailable]: what went wrong, in a few words
   /// ("no answer within 15 s", "server error 503", ...).
   final String? reason;
+
+  /// The lyrics came from the copy kept on the phone (no connection used).
+  final bool saved;
 }
 
 /// Lyrics for Now Playing's lyrics page, looked for in this order:
@@ -66,10 +69,12 @@ class LyricsService {
     Future<Directory> Function()? cacheDir,
     DateTime Function()? clock,
     Duration? timeout,
+    Future<void> Function(Duration)? sleep,
   })  : _client = client ?? http.Client(),
         _cacheDir = cacheDir ?? _defaultCacheDir,
         _clock = clock ?? DateTime.now,
-        _timeout = timeout ?? const Duration(seconds: 15);
+        _timeout = timeout ?? const Duration(seconds: 20),
+        _sleep = sleep ?? ((d) => Future<void>.delayed(d));
 
   static LyricsService instance = LyricsService();
 
@@ -90,6 +95,15 @@ class LyricsService {
   final Future<Directory> Function() _cacheDir;
   final DateTime Function() _clock;
   final Duration _timeout;
+  final Future<void> Function(Duration) _sleep;
+
+  /// Waits before the 2nd and 3rd try of a request that timed out, lost its
+  /// connection or got a server error (LRCLIB has slow moments): what you
+  /// used to do by tapping "Try again" a few times.
+  static const List<Duration> retryDelays = [
+    Duration(seconds: 1),
+    Duration(seconds: 3),
+  ];
 
   static Future<Directory> _defaultCacheDir() async {
     final docs = await getApplicationDocumentsDirectory();
@@ -104,17 +118,24 @@ class LyricsService {
     if (track.isFeedVideo) return const LyricsLookup(LyricsStatus.notASong);
     final onDisk = await _fromSongFiles(track);
     if (onDisk != null) return LyricsLookup(LyricsStatus.found, onDisk);
-    if (!refresh) {
-      final cached = await _readCache(track.id);
-      if (cached != null) return cached;
-    }
+    // Lyrics found once are kept on the phone for good: no connection
+    // needed the next time.
+    final cached = await _readCache(track.id);
+    if (!refresh && cached != null) return cached;
     final LyricsLookup found;
     try {
       found = await _fromLrclib(track, duration);
     } on _Unavailable catch (e) {
       LogService.add('Lyrics',
           'LRCLIB unreachable for "${track.displayTitle}": ${e.reason}');
+      // "Search again" while offline: keep showing what was saved.
+      if (cached?.status == LyricsStatus.found) return cached!;
       return LyricsLookup(LyricsStatus.unavailable, null, e.reason);
+    }
+    // "Search again" finding nothing doesn't throw away saved lyrics.
+    if (found.status != LyricsStatus.found &&
+        cached?.status == LyricsStatus.found) {
+      return cached!;
     }
     await _writeCache(track.id, found);
     return found;
@@ -219,7 +240,9 @@ class LyricsService {
         case 'found':
           final lyrics = Lyrics.fromJson(
               (json['lyrics'] as Map?)?.cast<String, dynamic>() ?? const {});
-          return lyrics.isEmpty ? null : LyricsLookup(LyricsStatus.found, lyrics);
+          return lyrics.isEmpty
+              ? null
+              : LyricsLookup(LyricsStatus.found, lyrics, null, true);
         case 'instrumental':
           return const LyricsLookup(LyricsStatus.instrumental);
         case 'notFound':
@@ -263,9 +286,25 @@ class LyricsService {
     if (variants.isEmpty) return const LyricsLookup(LyricsStatus.notFound);
 
     // Exact match first: cheap for LRCLIB, and right for well-tagged songs.
+    // A request that fails (after its retries) doesn't end the lookup: the
+    // others may still get through. Only when none does is LRCLIB
+    // "unreachable", with the last failure as the reason.
+    _Unavailable? failed;
+    var answered = false;
+    Future<Object?> ask(Uri uri) async {
+      try {
+        final result = await _getJson(uri);
+        answered = true;
+        return result;
+      } on _Unavailable catch (e) {
+        failed = e;
+        return null;
+      }
+    }
+
     final first = variants.first;
     if (first.artist.isNotEmpty) {
-      final exact = await _getJson(Uri.https(lrclibHost, '/api/get', {
+      final exact = await ask(Uri.https(lrclibHost, '/api/get', {
         'track_name': first.title,
         'artist_name': first.artist,
         if (track.album.trim().isNotEmpty) 'album_name': track.album.trim(),
@@ -282,7 +321,7 @@ class LyricsService {
     // one beating an equally good plain one.
     _Candidate? best;
     for (final q in variants) {
-      final results = await _getJson(Uri.https(lrclibHost, '/api/search', {
+      final results = await ask(Uri.https(lrclibHost, '/api/search', {
         'track_name': q.title,
         if (q.artist.isNotEmpty) 'artist_name': q.artist,
       }));
@@ -306,6 +345,7 @@ class LyricsService {
       final hit = _lookupFrom(best.record);
       if (hit != null) return hit;
     }
+    if (!answered && failed != null) throw failed!;
     return const LyricsLookup(LyricsStatus.notFound);
   }
 
@@ -338,35 +378,70 @@ class LyricsService {
   }
 
   /// The decoded JSON, or null for "not there" (404 and other client
-  /// errors); throws [_Unavailable] when LRCLIB can't be reached.
+  /// errors). A timeout, lost connection, 429 or server error is tried
+  /// again ([retryDelays]); after the last try it throws [_Unavailable]
+  /// saying what actually happened.
   Future<Object?> _getJson(Uri uri) async {
-    http.Response? response;
-    // One retry: a slow first answer (LRCLIB's search can take a while,
-    // or the phone is just waking its connection) isn't "offline" yet.
-    for (var attempt = 0; response == null; attempt++) {
+    final tries = retryDelays.length + 1;
+    String reason = '';
+    for (var attempt = 0; attempt < tries; attempt++) {
+      if (attempt > 0) await _sleep(retryDelays[attempt - 1]);
       try {
-        response = await _client.get(uri, headers: {
+        final response = await _client.get(uri, headers: {
           'User-Agent': userAgent,
           'Lrclib-Client': userAgent,
           'Accept': 'application/json',
         }).timeout(_timeout);
-      } on TimeoutException {
-        if (attempt > 0) {
-          throw _Unavailable('no answer within ${_timeout.inSeconds} s');
+        final code = response.statusCode;
+        if (code == 429) {
+          reason = 'LRCLIB is busy (too many requests)';
+          continue;
         }
+        if (code >= 500) {
+          reason = 'LRCLIB server error $code';
+          continue;
+        }
+        if (code != 200) return null;
+        try {
+          return jsonDecode(utf8.decode(response.bodyBytes));
+        } catch (_) {
+          return null;
+        }
+      } on TimeoutException {
+        reason = "LRCLIB didn't answer within ${_timeout.inSeconds} s";
+      } on SocketException catch (e) {
+        reason = _socketReason(e);
+      } on HandshakeException catch (e) {
+        reason = 'Secure connection to lrclib.net failed (${_short(e)})';
+      } on http.ClientException catch (e) {
+        reason = _clientReason(e.message);
       } catch (e) {
-        if (attempt > 0) throw _Unavailable(_short(e));
+        reason = _short(e);
       }
     }
-    if (response.statusCode == 429 || response.statusCode >= 500) {
-      throw _Unavailable('server error ${response.statusCode}');
+    throw _Unavailable('$reason (tried $tries times)');
+  }
+
+  static String _socketReason(SocketException e) {
+    final message = '${e.message} ${e.osError?.message ?? ''}'.toLowerCase();
+    if (message.contains('host lookup') || message.contains('no address')) {
+      return 'No internet: lrclib.net could not be found';
     }
-    if (response.statusCode != 200) return null;
-    try {
-      return jsonDecode(utf8.decode(response.bodyBytes));
-    } catch (_) {
-      return null;
+    if (message.contains('unreachable')) return 'No internet: network unreachable';
+    if (message.contains('refused')) return 'lrclib.net refused the connection';
+    if (message.contains('reset') || message.contains('closed')) {
+      return 'The connection to lrclib.net was cut off';
     }
+    return 'Connection to lrclib.net failed (${_short(e)})';
+  }
+
+  static String _clientReason(String message) {
+    final m = message.toLowerCase();
+    if (m.contains('host lookup')) return 'No internet: lrclib.net could not be found';
+    if (m.contains('reset') || m.contains('closed')) {
+      return 'The connection to lrclib.net was cut off';
+    }
+    return 'Connection to lrclib.net failed ($message)';
   }
 }
 

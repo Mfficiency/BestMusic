@@ -182,7 +182,9 @@ def ask_claude(prompt, api_key=None, client=None):
         except ImportError:
             raise SourceError("The anthropic package is not installed (pip install -r organizer/requirements.txt)")
         key = api_key or os.environ.get("ANTHROPIC_API_KEY")
-        client = anthropic.Anthropic(api_key=key) if key else anthropic.Anthropic()
+        if not key:
+            raise SourceError("This needs an Anthropic API key: Settings → Anthropic API key")
+        client = anthropic.Anthropic(api_key=key)
     messages = [{"role": "user", "content": prompt}]
     for _ in range(6):  # pause_turn: the server-side search loop paused; send it back to resume
         response = client.messages.create(

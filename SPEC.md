@@ -2039,13 +2039,18 @@ result to the music server Pi, which the app streams from. Full guide: `organize
   entry is dropped.
 - **Names** (`mo/names.py`): `clean_title`/`clean_artist` port `track_title.dart`'s
   junk-annotation rule and add track-number, underscore, ALL-CAPS and "feat." clean-up.
+  `split_artist_title` treats underscores as spaces, so `kygo_-_stole_the_show` splits too.
   `song_key` (accent/case/punctuation/feat-insensitive artist|title) drives duplicates and the
   "already have" mark. `format_pattern` builds paths from `{artist}/{title}`-style patterns with
   Windows-safe parts.
 - **Get music** (`mo/sources.py`, `mo/downloader.py`):
   - **Lists:** pasted lists, YouTube search (yt-dlp flat search), Deezer's public API for an
     artist's top songs and a country's "Top <country>" chart playlist by "Deezer Charts" (local
-    names like "Top Belgique" accepted), and a free prompt answered by Claude.
+    names like "Top Belgique" accepted), and a free prompt answered by Claude. Charts also has a
+    period picker ("right now" or one of the last 16 years): a year sends a ready-made
+    year-end-chart prompt to the Claude source instead of Deezer (Belgium → Ultratop year
+    chart). Without an API key (Settings or `ANTHROPIC_API_KEY`) the Claude source says so
+    instead of failing inside the client.
   - **Claude:** `claude-opus-5-5` with the `web_search_20260209` server tool and a strict
     `submit_songs` tool for the result. It handles `pause_turn`, has `fallbacks: "default"`
     under `server-side-fallback-2026-07-01`, and checks for refusals.

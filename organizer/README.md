@@ -57,7 +57,9 @@ the song index and the organizer's own trash are kept in `organizer/local/`, whi
 marked and unticked):
 - **Search YouTube**: pick the exact videos.
 - **Artist's top songs**: the artist's most played songs (Deezer).
-- **Charts**: a country's current chart (Deezer's "Top Belgium"-style charts).
+- **Charts**: a country's current chart (Deezer's "Top Belgium"-style charts), or pick a year
+  for that year's official year-end chart (for Belgium the Ultratop year chart; the current year
+  gives the year so far). A year's chart is looked up by Claude, so it needs the API key.
 - **Ask for a list**: anything in your own words, for example *"the top 10 of the Belgian
   Ultratop year chart 2026"* or *"Dua Lipa's 15 most streamed songs"*. Claude looks it up on
   the web, so it uses real, current charts, and returns the list. Each list costs a few cents of

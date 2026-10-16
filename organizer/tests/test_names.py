@@ -31,6 +31,9 @@ class Names(unittest.TestCase):
         ch, _ = names.proposal({"artist": "Stromae", "title": "Stromae - Santé"})
         self.assertEqual(ch, {"title": "Santé"})
         self.assertEqual(names.proposal({"artist": "Stromae", "title": "Santé"})[0], {})
+        # Underscored file names split too.
+        ch, _ = names.proposal({"artist": "", "title": "", "stem": "kygo_-_stole_the_show"})
+        self.assertEqual(ch, {"artist": "Kygo", "title": "Stole the Show"})
 
     def test_song_key(self):
         a = names.song_key("Beyoncé", "Halo (Official Video)")

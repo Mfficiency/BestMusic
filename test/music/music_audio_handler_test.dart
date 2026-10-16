@@ -82,4 +82,40 @@ void main() {
     expect(MusicPlaylistService.instance.isFavorite(id), isTrue);
     expect(MusicLibraryService.instance.byId(id)!.upSwipeCount, 2);
   });
+
+  group('addToMusicQueue', () {
+    test('play next goes right after the playing song, add to queue at '
+        'the end', () async {
+      final handler = handlerWithQueue(); // a (playing), b, c
+      await handler.addToMusicQueue(track('x'), playNext: true);
+      await handler.addToMusicQueue(track('y'));
+      expect(ids(handler), [
+        'local:/fake/a.mp3',
+        'local:/fake/x.mp3',
+        'local:/fake/b.mp3',
+        'local:/fake/c.mp3',
+        'local:/fake/y.mp3',
+      ]);
+      expect(handler.currentTrack!.id, 'local:/fake/a.mp3');
+    });
+
+    test('with nothing loaded the song becomes the paused queue', () async {
+      final handler = MusicAudioHandler();
+      await handler.addToMusicQueue(track('x'));
+      expect(handler.currentTrack!.id, 'local:/fake/x.mp3');
+    });
+
+    test('while a video plays it goes to the music session to come back to',
+        () async {
+      final handler = MusicAudioHandler()
+        ..restore([Track.youtube(videoId: 'v1', title: 'Talk')]);
+      await handler.addToMusicQueue(track('x'));
+      await handler.addToMusicQueue(track('y'), playNext: true);
+      expect(handler.currentTrack!.remoteId, 'v1');
+      final other = handler.otherSession.value!;
+      expect(other.isVideo, isFalse);
+      expect(other.queue.map((t) => t.id),
+          ['local:/fake/x.mp3', 'local:/fake/y.mp3']);
+    });
+  });
 }

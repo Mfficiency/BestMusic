@@ -434,6 +434,44 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
     return true;
   }
 
+  /// "Play next" / "Add to queue" for a song (Play history's options):
+  /// puts [track] right after the playing song ([playNext]) or at the end
+  /// of the *music* queue, without interrupting anything — the playing
+  /// queue when music plays (or is paused), else the remembered music
+  /// session ("Back to music" then plays it), else a new paused one. With
+  /// nothing loaded it becomes the (paused) queue.
+  Future<void> addToMusicQueue(Track track, {bool playNext = false}) async {
+    final current = currentTrack;
+    if (current == null) {
+      restore([track]);
+      _persist();
+      return;
+    }
+    if (!current.isFeedVideo) {
+      final at = playNext ? _queueIndex + 1 : _queue.length;
+      _queue = [..._queue]..insert(at, track);
+      if (_preShuffleOrder != null) {
+        _preShuffleOrder = [..._preShuffleOrder!, track];
+      }
+      queue.add(_queue.map(_toMediaItem).toList());
+      _persist();
+      return;
+    }
+    final other = otherSession.value;
+    if (other != null && !other.isVideo) {
+      final at = playNext ? other.index + 1 : other.queue.length;
+      otherSession.value = PlaybackSession(
+        queue: [...other.queue]..insert(at, track),
+        index: other.index,
+        position: other.position,
+      );
+    } else {
+      otherSession.value = PlaybackSession(
+          queue: [track], index: 0, position: Duration.zero);
+    }
+    _persist();
+  }
+
   /// How many videos after the playing one are downloaded ahead, so a
   /// queue keeps playing offline.
   static const int _videosAhead = 2;

@@ -2163,3 +2163,19 @@ Tests: `test/music/play_history_service_test.dart`, `test/music/play_history_pag
 `skip_next`, key `musicMiniPlayerNext`, labelled "Next" through `Semantics` like play/pause
 (the bar sits outside the navigator's Overlay). It calls `skipToNext`, so it counts as a skip
 of the track being left (§10.6u). Test: `test/music/music_resume_test.dart`.
+
+### 10.6x Play history entry options (Best Music 0.3.48)
+
+Each Play history row gets an info button (tooltip "Song info and options", next to "Delete from
+history") opening `showPlayHistoryEntrySheet`: the title/artist, then **Song info**
+(`TrackMetadataPage`), **Play next**, **Add to queue**, **Add to playlist**
+(`showAddToPlaylistSheet`) and **Delete from history**. `playHistoryTrackOf(entry)` finds the
+track: the library song by id (null once it's gone, which leaves only Delete and says "no longer
+in your library"), or for a video the feed's copy, else `Track.youtube` rebuilt from the entry.
+A video only gets Add to queue, through `addToVideoQueue`. Songs use the new
+`MusicAudioHandler.addToMusicQueue(track, playNext:)`: right after the playing song or at the
+end of the music queue; while a video plays, into the remembered music session (or a new one)
+that "Back to music" resumes; with nothing loaded, the paused queue. Queue options need the
+player to be ready. Tests: `test/music/play_history_page_test.dart`,
+`test/music/music_audio_handler_test.dart`.
+

@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../models/track.dart';
+import '../services/music_library_service.dart';
+import '../services/music_player_service.dart';
 import '../services/play_history_service.dart';
+import '../services/youtube_feed_service.dart';
+import 'music_player_page.dart' show showAddToPlaylistSheet;
 import 'now_playing_highlight.dart';
 import 'subpage_app_bar.dart';
+import 'track_metadata_page.dart';
 
 const _months = [
   'January', 'February', 'March', 'April', 'May', 'June', 'July', //
@@ -151,14 +157,135 @@ class PlayHistoryPage extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          trailing: IconButton(
-            icon: const Icon(Icons.close),
-            tooltip: 'Delete from history',
-            onPressed: () => PlayHistoryService.instance.delete(entry.id),
-          ),
+          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+            IconButton(
+              icon: const Icon(Icons.info_outline),
+              tooltip: 'Song info and options',
+              onPressed: () => showPlayHistoryEntrySheet(context, entry),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close),
+              tooltip: 'Delete from history',
+              onPressed: () => PlayHistoryService.instance.delete(entry.id),
+            ),
+          ]),
         ),
       ));
     }
     return rows;
   }
+}
+
+/// The track a history entry stands for: the library song (null once it's
+/// gone from the library), or for a Subscriptions video the feed's copy,
+/// else one rebuilt from the entry.
+Track? playHistoryTrackOf(PlayHistoryEntry entry) {
+  if (!entry.isVideo) return MusicLibraryService.instance.byId(entry.trackId);
+  const prefix = 'youtube:';
+  if (!entry.trackId.startsWith(prefix)) return null;
+  final videoId = entry.trackId.substring(prefix.length);
+  for (final v in YoutubeFeedService.instance.videos.value) {
+    if (v.videoId == videoId) return YoutubeFeedService.trackFor(v);
+  }
+  return Track.youtube(
+      videoId: videoId, title: entry.title, artist: entry.artist);
+}
+
+/// The history row's info button: the song's info page, Play next, Add to
+/// queue, Add to playlist and Delete from history. A video gets Add to
+/// queue (the video queue) only; a song no longer in the library only
+/// Delete.
+Future<void> showPlayHistoryEntrySheet(
+    BuildContext context, PlayHistoryEntry entry) {
+  final track = playHistoryTrackOf(entry);
+  final canQueue = track != null && MusicPlayerService.isReady;
+  void done(String message) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  return showModalBottomSheet<void>(
+    context: context,
+    builder: (sheetContext) {
+      void close() => Navigator.of(sheetContext).pop();
+      return SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            ListTile(
+              title: Text(entry.title.isEmpty ? 'Unknown' : entry.title,
+                  maxLines: 2, overflow: TextOverflow.ellipsis),
+              subtitle: Text(
+                [
+                  if (entry.isVideo) 'Video',
+                  if (entry.artist.isNotEmpty) entry.artist,
+                  if (track == null) 'no longer in your library',
+                ].join(' · '),
+              ),
+            ),
+            const Divider(height: 1),
+            if (track != null && !entry.isVideo)
+              ListTile(
+                leading: const Icon(Icons.info_outline),
+                title: const Text('Song info'),
+                subtitle: const Text('Details, plays, skips and swipes'),
+                onTap: () {
+                  close();
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => TrackMetadataPage(trackId: track.id)));
+                },
+              ),
+            if (canQueue && !entry.isVideo)
+              ListTile(
+                leading: const Icon(Icons.queue_play_next),
+                title: const Text('Play next'),
+                onTap: () async {
+                  close();
+                  await MusicPlayerService.handler
+                      .addToMusicQueue(track, playNext: true);
+                  done('Plays next');
+                },
+              ),
+            if (canQueue)
+              ListTile(
+                leading: const Icon(Icons.add_to_queue),
+                title: const Text('Add to queue'),
+                onTap: () async {
+                  close();
+                  final handler = MusicPlayerService.handler;
+                  if (entry.isVideo) {
+                    final added = await handler.addToVideoQueue(track);
+                    done(added
+                        ? 'Added to the video queue'
+                        : 'Already in the video queue');
+                  } else {
+                    await handler.addToMusicQueue(track);
+                    done('Added to the queue');
+                  }
+                },
+              ),
+            if (track != null && !entry.isVideo)
+              ListTile(
+                leading: const Icon(Icons.playlist_add),
+                title: const Text('Add to playlist'),
+                onTap: () {
+                  close();
+                  if (context.mounted) showAddToPlaylistSheet(context, track);
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: const Text('Delete from history'),
+              onTap: () {
+                close();
+                PlayHistoryService.instance.delete(entry.id);
+              },
+            ),
+          ],
+        ),
+      );
+    },
+  );
 }

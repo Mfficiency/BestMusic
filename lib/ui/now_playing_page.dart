@@ -3,12 +3,13 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 
+import '../models/track.dart';
 import '../services/music_audio_handler.dart';
 import '../services/music_player_service.dart';
 import '../services/speaker_play_guard.dart';
 import '../services/music_playlist_service.dart';
 import 'estimated_progress_bar.dart';
-import 'lyrics_page.dart';
+import 'lyrics_view.dart';
 import 'music_player_page.dart' show showAddToPlaylistSheet;
 import 'music_mini_player_bar.dart'
     show SwitchSessionButton, switchSessionAndShow;
@@ -29,6 +30,15 @@ class NowPlayingPage extends StatefulWidget {
   /// How many Now Playing pages are open — [MusicMiniPlayerBar] hides while
   /// this is above zero, since the page already shows the same controls.
   static final ValueNotifier<int> openCount = ValueNotifier(0);
+
+  /// Whether the ⓘ panel is open: the artwork and title shrink to a
+  /// header at the top, the controls stay where they can be reached, and
+  /// the bottom half shows the Lyrics / Info tabs ([_DetailsPanel]). Kept
+  /// while the app runs, so the next Now Playing opens the same way.
+  static final ValueNotifier<bool> showDetails = ValueNotifier(false);
+
+  /// The panel's last tab (0 = Lyrics, 1 = Info).
+  static int detailsTab = 0;
 
   /// Route name, so "Back to music" can find an open Now Playing page
   /// instead of stacking a second one ([showSessionScreen]).
@@ -108,31 +118,91 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
               MusicPlaylistService.instance.isFavorite(track.id);
           final isLiked =
               track != null && MusicPlaylistService.instance.isLiked(track.id);
-          return GestureDetector(
-            onVerticalDragUpdate: (d) =>
-                setState(() => _dragOffset += d.delta.dy),
-            onVerticalDragEnd: _onVerticalDragEnd,
-            child: Container(
-              color: Colors.transparent,
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Loading (resolving a video, buffering): a filling bar.
-                  StreamBuilder<PlaybackState>(
-                    stream: handler.playbackState,
-                    initialData: handler.playbackState.valueOrNull,
-                    builder: (context, snapshot) {
-                      final state = snapshot.data?.processingState;
-                      return EstimatedProgressBar(
-                        active: state == AudioProcessingState.loading ||
-                            state == AudioProcessingState.buffering,
-                        expected: const Duration(seconds: 5),
+          return ValueListenableBuilder<bool>(
+            valueListenable: NowPlayingPage.showDetails,
+            builder: (context, details, _) {
+              final controls = <Widget>[
+                  // One tap back to the last song / last video.
+                  ValueListenableBuilder<PlaybackSession?>(
+                    valueListenable: handler.otherSession,
+                    builder: (context, other, _) {
+                      if (other == null) return const SizedBox.shrink();
+                      return Align(
+                        alignment: Alignment.centerLeft,
+                        child: ActionChip(
+                          key: const ValueKey('nowPlayingSwitchSession'),
+                          avatar: Icon(other.isVideo
+                              ? Icons.smart_display_outlined
+                              : Icons.library_music_outlined),
+                          label: Text(SwitchSessionButton.labelFor(other),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          onPressed: () => switchSessionAndShow(
+                              handler, Navigator.of(context)),
+                        ),
                       );
                     },
                   ),
-                  Expanded(
-                    child: Stack(
+                _ProgressBar(handler: handler),
+                const SizedBox(height: 8),
+                _Transport(handler: handler, isFavorite: isFavorite),
+                _ToolsRow(handler: handler),
+              ];
+              final loading = StreamBuilder<PlaybackState>(
+                stream: handler.playbackState,
+                initialData: handler.playbackState.valueOrNull,
+                builder: (context, snapshot) {
+                  final state = snapshot.data?.processingState;
+                  return EstimatedProgressBar(
+                    active: state == AudioProcessingState.loading ||
+                        state == AudioProcessingState.buffering,
+                    expected: const Duration(seconds: 5),
+                  );
+                },
+              );
+              if (details) {
+                // Header, controls, then the scrollable tabs: the controls
+                // never scroll away. Swipes only on the header, so the
+                // tabs can scroll.
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    children: [
+                      loading,
+                      GestureDetector(
+                        onVerticalDragUpdate: (d) =>
+                            setState(() => _dragOffset += d.delta.dy),
+                        onVerticalDragEnd: _onVerticalDragEnd,
+                        child: _CompactHeader(
+                          item: item,
+                          isFavorite: isFavorite,
+                          isLiked: isLiked,
+                          flash: _flashLabel,
+                        ),
+                      ),
+                      ...controls,
+                      const Divider(height: 1),
+                      Expanded(
+                        child: track == null
+                            ? const SizedBox.shrink()
+                            : _DetailsPanel(track: track),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return GestureDetector(
+                onVerticalDragUpdate: (d) =>
+                    setState(() => _dragOffset += d.delta.dy),
+                onVerticalDragEnd: _onVerticalDragEnd,
+                child: Container(
+                  color: Colors.transparent,
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      loading,
+                      Expanded(
+                        child: Stack(
                       alignment: Alignment.center,
                       children: [
                         AnimatedContainer(
@@ -230,42 +300,137 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                           ),
                       ],
                     ),
+                      ),
+                      const Text(
+                        'Swipe up to like • swipe down to skip & dislike',
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      ...controls,
+                    ],
                   ),
-                  const Text(
-                    'Swipe up to like • swipe down to skip & dislike',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  // One tap back to the last song / last video.
-                  ValueListenableBuilder<PlaybackSession?>(
-                    valueListenable: handler.otherSession,
-                    builder: (context, other, _) {
-                      if (other == null) return const SizedBox.shrink();
-                      return Align(
-                        alignment: Alignment.centerLeft,
-                        child: ActionChip(
-                          key: const ValueKey('nowPlayingSwitchSession'),
-                          avatar: Icon(other.isVideo
-                              ? Icons.smart_display_outlined
-                              : Icons.library_music_outlined),
-                          label: Text(SwitchSessionButton.labelFor(other),
-                              maxLines: 1, overflow: TextOverflow.ellipsis),
-                          onPressed: () => switchSessionAndShow(
-                              handler, Navigator.of(context)),
-                        ),
-                      );
-                    },
-                  ),
-                  _ProgressBar(handler: handler),
-                  const SizedBox(height: 8),
-                  _Transport(handler: handler, isFavorite: isFavorite),
-                  _ToolsRow(handler: handler),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           );
         },
       ),
+    );
+  }
+}
+
+/// The ⓘ panel's top: a small artwork, the title and artist (and the
+/// favourite/liked marks), where the big artwork was. Still takes the
+/// swipe up/down (its confirmation shows in place of the title).
+class _CompactHeader extends StatelessWidget {
+  const _CompactHeader({
+    required this.item,
+    required this.isFavorite,
+    required this.isLiked,
+    required this.flash,
+  });
+
+  final MediaItem item;
+  final bool isFavorite;
+  final bool isLiked;
+  final String? flash;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final noteIcon = Icon(Icons.music_note,
+        size: 40, color: theme.colorScheme.primary.withValues(alpha: 0.5));
+    return Container(
+      color: Colors.transparent,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 56,
+            height: 56,
+            child: item.artUri != null
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(item.artUri.toString(),
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => noteIcon),
+                  )
+                : noteIcon,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(flash ?? item.title,
+                    style: theme.textTheme.titleMedium,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis),
+                if (flash == null && (item.artist ?? '').isNotEmpty)
+                  Text(item.artist!,
+                      style: theme.textTheme.bodyMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+          if (isFavorite)
+            const Icon(Icons.favorite,
+                color: Colors.pink, semanticLabel: 'In Favorites'),
+          if (isLiked)
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Icon(Icons.thumb_up,
+                  color: theme.colorScheme.primary,
+                  semanticLabel: 'In Liked songs'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The ⓘ panel's tabs, filling the bottom half: Lyrics ([LyricsView]) and
+/// Info ([TrackInfoView]), each scrolling on its own. Remembers the last
+/// tab ([NowPlayingPage.detailsTab]).
+class _DetailsPanel extends StatefulWidget {
+  const _DetailsPanel({required this.track});
+
+  final Track track;
+
+  @override
+  State<_DetailsPanel> createState() => _DetailsPanelState();
+}
+
+class _DetailsPanelState extends State<_DetailsPanel>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabs = TabController(
+      length: 2, vsync: this, initialIndex: NowPlayingPage.detailsTab)
+    ..addListener(() => NowPlayingPage.detailsTab = _tabs.index);
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        TabBar(
+            controller: _tabs,
+            tabs: const [Tab(text: 'Lyrics'), Tab(text: 'Info')]),
+        Expanded(
+          child: TabBarView(
+            controller: _tabs,
+            children: [
+              const LyricsView(),
+              TrackInfoView(trackId: widget.track.id, fallback: widget.track),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -326,30 +491,24 @@ class _ToolsRow extends StatelessWidget {
           MaterialPageRoute(builder: (_) => const QueuePage()),
         ),
       ),
-      // Songs only: Subscriptions videos aren't library tracks (and have
-      // a transcript instead of lyrics).
-      if (track != null && !video)
-        IconButton(
-          icon: const Icon(Icons.lyrics_outlined),
-          tooltip: 'Lyrics',
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const LyricsPage()),
-          ),
-        ),
+      // Songs only: Subscriptions videos aren't library tracks.
       if (track != null && !video)
         IconButton(
           icon: const Icon(Icons.playlist_add),
           tooltip: 'Add to playlist',
           onPressed: () => showAddToPlaylistSheet(context, track),
         ),
-      IconButton(
-        icon: const Icon(Icons.info_outline),
-        tooltip: 'Track info',
-        onPressed: track == null
-            ? null
-            : () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => TrackMetadataPage(trackId: track.id),
-                )),
+      // Opens/closes the Lyrics / Info panel under the controls.
+      ValueListenableBuilder<bool>(
+        valueListenable: NowPlayingPage.showDetails,
+        builder: (context, open, _) => IconButton(
+          icon: Icon(open ? Icons.info : Icons.info_outline),
+          tooltip: open ? 'Hide track info' : 'Track info',
+          color: open ? Theme.of(context).colorScheme.primary : null,
+          onPressed: track == null
+              ? null
+              : () => NowPlayingPage.showDetails.value = !open,
+        ),
       ),
     ];
     return LayoutBuilder(builder: (context, constraints) {

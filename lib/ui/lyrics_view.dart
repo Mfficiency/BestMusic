@@ -7,16 +7,15 @@ import '../models/lyrics.dart';
 import '../services/lyrics_service.dart';
 import '../services/music_audio_handler.dart';
 import '../services/music_player_service.dart';
-import 'subpage_app_bar.dart';
 
-/// Now Playing → Lyrics: the playing song's words, following the song.
-/// Synced lyrics light up line by line (the current line fills in as it's
-/// sung) and scroll along; tapping a line jumps the song there. Scrolling
-/// by hand pauses the following for a few seconds. Plain lyrics are just
-/// shown. Moves on with the song when the next one starts. Lyrics come
-/// from [LyricsService].
-class LyricsPage extends StatefulWidget {
-  const LyricsPage({super.key, this.service, this.handler});
+/// Now Playing's Lyrics tab (tap ⓘ): the playing song's words, following
+/// the song. Synced lyrics light up line by line (the current line fills
+/// in as it's sung) and scroll along; tapping a line jumps the song there.
+/// Scrolling by hand pauses the following for a few seconds. Plain lyrics
+/// are just shown. Moves on with the song when the next one starts.
+/// Lyrics come from [LyricsService].
+class LyricsView extends StatefulWidget {
+  const LyricsView({super.key, this.service, this.handler});
 
   /// Defaults to [LyricsService.instance] / [MusicPlayerService.handler];
   /// tests pass their own.
@@ -27,10 +26,10 @@ class LyricsPage extends StatefulWidget {
   static const Duration manualScrollPause = Duration(seconds: 4);
 
   @override
-  State<LyricsPage> createState() => _LyricsPageState();
+  State<LyricsView> createState() => _LyricsViewState();
 }
 
-class _LyricsPageState extends State<LyricsPage> {
+class _LyricsViewState extends State<LyricsView> {
   late final MusicAudioHandler _handler =
       widget.handler ?? MusicPlayerService.handler;
   late final LyricsService _service = widget.service ?? LyricsService.instance;
@@ -134,43 +133,25 @@ class _LyricsPageState extends State<LyricsPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final track = _handler.currentTrack;
-    return Scaffold(
-      appBar: buildSubpageAppBar(
-        context,
-        title: 'Lyrics',
-        actions: [
+  Widget build(BuildContext context) => _body(context);
+
+  /// Under the lyrics: where they came from, and "Search lyrics again"
+  /// (skips the saved copy — for wrong or missing lyrics).
+  Widget _footer(BuildContext context, Lyrics lyrics) => Padding(
+        padding: const EdgeInsets.only(top: 16),
+        child: Row(children: [
+          Expanded(
+            child: Text(
+                lyrics.source.isEmpty ? '' : 'Lyrics from ${lyrics.source}',
+                style: Theme.of(context).textTheme.bodySmall),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Search lyrics again',
-            onPressed: track == null || track.isFeedVideo || _loading
-                ? null
-                : () => _fetch(refresh: true),
+            onPressed: () => _fetch(refresh: true),
           ),
-        ],
-      ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (track != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-              child: Text(
-                [
-                  track.displayTitle,
-                  if (track.displayArtist.isNotEmpty) track.displayArtist,
-                ].join(' · '),
-                style: Theme.of(context).textTheme.titleSmall,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          Expanded(child: _body(context)),
-        ],
-      ),
-    );
-  }
+        ]),
+      );
 
   Widget _body(BuildContext context) {
     if (_handler.currentTrack == null) {
@@ -228,12 +209,12 @@ class _LyricsPageState extends State<LyricsPage> {
     final screen = MediaQuery.sizeOf(context).height;
     return NotificationListener<UserScrollNotification>(
       onNotification: (_) {
-        _manualUntil = DateTime.now().add(LyricsPage.manualScrollPause);
+        _manualUntil = DateTime.now().add(LyricsView.manualScrollPause);
         return false;
       },
       child: SingleChildScrollView(
         controller: _scroll,
-        padding: EdgeInsets.fromLTRB(24, 24, 24, screen * 0.4),
+        padding: EdgeInsets.fromLTRB(24, 16, 24, screen * 0.2),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -261,7 +242,7 @@ class _LyricsPageState extends State<LyricsPage> {
                         ),
                 ),
               ),
-            _Source(source: lyrics.source),
+            _footer(context, lyrics),
           ],
         ),
       ),
@@ -275,7 +256,7 @@ class _LyricsPageState extends State<LyricsPage> {
     final theme = Theme.of(context);
     return SingleChildScrollView(
       controller: _scroll,
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 48),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -289,7 +270,7 @@ class _LyricsPageState extends State<LyricsPage> {
             lyrics.plain,
             style: theme.textTheme.titleLarge!.copyWith(height: 1.5),
           ),
-          _Source(source: lyrics.source),
+          _footer(context, lyrics),
         ],
       ),
     );
@@ -327,22 +308,6 @@ class _SungLine extends StatelessWidget {
   }
 }
 
-class _Source extends StatelessWidget {
-  const _Source({required this.source});
-
-  final String source;
-
-  @override
-  Widget build(BuildContext context) {
-    if (source.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(top: 24),
-      child: Text('Lyrics from $source',
-          style: Theme.of(context).textTheme.bodySmall),
-    );
-  }
-}
-
 class _Message extends StatelessWidget {
   const _Message({
     required this.icon,
@@ -360,10 +325,10 @@ class _Message extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon,
-              size: 64,
+              size: 48,
               color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)),
           const SizedBox(height: 16),
           Text(text, textAlign: TextAlign.center),

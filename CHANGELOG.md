@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.55] - 2026-10-16
+- Now Playing: tap ⓘ and everything moves up. The song's name goes to a small header at the top, the play controls stay where they are, and the bottom half shows two tabs you can scroll: Lyrics and Info (the song's details, with Edit info). Tap ⓘ again to go back to the big view. The separate Lyrics button is gone.
+
 ## [0.3.54] - 2026-10-16
 - Select songs in any song list: tap a song's music icon (or press and hold the song) to select it. Then tap more songs to add them, or Select all. The bar at the top can play them, add them to a playlist (or a new one), and under ⋮: play next, add to the queue, add to Favorites, move to a folder, delete, or remove from the playlist you're in. Works in your songs, Favorites, playlists, artists, folders, tags, search, Songs by BPM and the server's folders. Back or ✕ ends the selection.
 

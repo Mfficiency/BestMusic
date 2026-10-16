@@ -2255,21 +2255,21 @@ to fit (`FittedBox`) rather than overflowing.
   - *one*: when a song ends (`ProcessingState.completed`, after the play count and the "end of
     song" sleep timer are handled), it is rewound and played again, and recorded in the play
     history again. Next/Previous still move on.
-- **Lyrics** — `lib/ui/lyrics_page.dart` (`LyricsPage`), opened by Now Playing's
-  `lyrics_outlined` button (tooltip "Lyrics", songs only). It follows the playing song (a new
-  `mediaItem` → a new lookup) and shows:
+- **Lyrics** — `lib/ui/lyrics_view.dart` (`LyricsView`; until 0.3.55 a separate `LyricsPage`
+  opened by a "Lyrics" button, now the Lyrics tab of Now Playing's ⓘ panel, §10.6ae). It
+  follows the playing song (a new `mediaItem` → a new lookup) and shows:
   - *synced* lyrics as a column of lines: the one being sung (`Lyrics.indexAt`) is bright and
     fills in character by character as it's sung (`Lyrics.progressAt`: LRC only gives line
     starts, so a line is assumed to last 70 ms per character, at least 1.5 s, never past the
     next line's start); the rest are dim. The page polls `playbackState.position` every 100 ms
-    and scrolls the current line to 40 % of the height (`Scrollable.ensureVisible`) unless the
+    and scrolls the current line to 40 % of the panel's height (`Scrollable.ensureVisible`) unless the
     user scrolled by hand in the last 4 s. Tapping a line seeks there. An empty LRC line
     (instrumental break) shows as "♪".
   - *plain* lyrics as selectable text, with a note that they aren't timed.
   - messages for no lyrics ("Search again"), LRCLIB unreachable ("Try again"), instrumental,
     and a Subscriptions video (they have a transcript instead).
-  The app bar's refresh button ("Search lyrics again") looks again, skipping the saved copy;
-  "Lyrics from …" under the lyrics names the source.
+  Under the lyrics, "Lyrics from …" names the source, next to a refresh button ("Search
+  lyrics again") that looks again, skipping the saved copy.
 - **Where lyrics come from** — `lib/services/lyrics_service.dart` (`LyricsService.lyricsFor`),
   in order: (1) an `.lrc` file next to a local song (`Song.mp3` → `Song.lrc`, UTF-8 or
   Latin-1); (2) the `USLT` frame of a local mp3's ID3v2 tag (the whole tag is read, size from
@@ -2289,7 +2289,7 @@ to fit (`FittedBox`) rather than overflowing.
   Tests: `test/music/lyrics_test.dart` (parser, `indexAt`, `progressAt`, JSON),
   `test/music/lyrics_service_test.dart` (exact match, search fallback and scoring, the 7-day
   "nothing found", instrumental, offline, `.lrc` file, ID3 `USLT`, videos),
-  `test/music/lyrics_page_test.dart` (button, sung line, plain, messages, following the song,
+  `test/music/lyrics_view_test.dart` (panel, sung line, plain, messages, following the song,
   narrow phone), `test/music/music_audio_handler_test.dart` and
   `test/music/now_playing_page_test.dart` (repeat).
 
@@ -2325,4 +2325,27 @@ Every song list can select songs and act on all of them at once. `TrackSelection
   menu) keep their own handling.
   Tests: `test/music/track_selection_test.dart`, `test/music/bpm_range_page_test.dart`,
   `test/music/music_audio_handler_test.dart` (`addAllToMusicQueue`).
+
+### 10.6ae Now Playing's ⓘ panel: Lyrics and Info tabs, controls always in view (Best Music 0.3.55)
+
+The ⓘ button in Now Playing's tools row (tooltip "Track info", "Hide track info" while open,
+filled and coloured when open) no longer opens `TrackMetadataPage`; it toggles
+`NowPlayingPage.showDetails` (a static `ValueNotifier<bool>`, so the next Now Playing in the same
+app run opens the same way). The separate Lyrics button is gone.
+
+- **Closed** — as before: the big artwork, title and artist fill the top, the "Swipe up to like
+  • swipe down to skip & dislike" hint, then the controls; the whole page takes the swipes.
+- **Open** — everything moves up: `_CompactHeader` (56 px artwork, title, artist, the
+  favourite/liked marks; it alone takes the swipes, and the swipe's confirmation shows in place
+  of the title) at the top, then the controls (back-to-video chip, progress bar, transport, tools
+  row) — never scrolled away — then, filling the rest (about the bottom half),
+  `_DetailsPanel`: a `TabBar` with **Lyrics** (`LyricsView`) and **Info** (`TrackInfoView`),
+  each scrolling on its own. The last tab is remembered (`NowPlayingPage.detailsTab`).
+- **Info tab** — `TrackInfoView` (`lib/ui/track_metadata_page.dart`): title, artist, album,
+  genre, year, BPM, tags, an "Edit info" button (opens `TrackMetadataPage`, the editor), then
+  `TrackStatsRows` — length, plays, skips, swipes, shuffle weight, dates, source, file — the
+  same rows `TrackMetadataPage` shows under its fields (moved there from the page). A
+  Subscriptions video (not a library song) shows its title, channel and length.
+  Tests: `test/music/lyrics_view_test.dart` (ⓘ opens the panel above which the controls stay,
+  Info tab, closing, the panel on a 320×640 screen), `test/music/now_playing_page_test.dart`.
 

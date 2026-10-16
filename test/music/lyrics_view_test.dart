@@ -6,7 +6,7 @@ import 'package:best_music/services/lyrics_service.dart';
 import 'package:best_music/services/music_library_service.dart';
 import 'package:best_music/services/music_player_service.dart';
 import 'package:best_music/services/music_playlist_service.dart';
-import 'package:best_music/ui/lyrics_page.dart';
+import 'package:best_music/ui/lyrics_view.dart';
 import 'package:best_music/ui/now_playing_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -44,7 +44,12 @@ void main() {
       await MusicPlayerService.init();
     }
     MusicLibraryService.instance.tracks.value = [song];
+    NowPlayingPage.showDetails.value = false;
+    NowPlayingPage.detailsTab = 0;
   });
+
+  Widget view(LyricsService service) =>
+      MaterialApp(home: Scaffold(body: LyricsView(service: service)));
 
   Lyrics synced() => Lyrics.parseLrc('''
 [00:05.00]First line
@@ -52,7 +57,7 @@ void main() {
 [00:15.00]Third line
 ''', source: 'LRCLIB');
 
-  testWidgets('Now Playing has a Lyrics button for songs that opens the page',
+  testWidgets('Now Playing: ⓘ moves things up and shows the Lyrics tab',
       (tester) async {
     final fake = _FakeLyrics(LyricsLookup(LyricsStatus.found, synced()));
     final before = LyricsService.instance;
@@ -62,12 +67,39 @@ void main() {
 
     await tester.pumpWidget(const MaterialApp(home: NowPlayingPage()));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Lyrics'));
+    expect(find.byTooltip('Lyrics'), findsNothing);
+    expect(find.text('Swipe up to like • swipe down to skip & dislike'),
+        findsOneWidget);
+
+    await tester.tap(find.byTooltip('Track info'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(LyricsPage), findsOneWidget);
+    expect(find.byType(LyricsView), findsOneWidget);
+    expect(find.text('Lyrics'), findsOneWidget);
+    expect(find.text('Info'), findsOneWidget);
     expect(find.text('Second line'), findsOneWidget);
     expect(fake.calls.single, (song.id, false));
+    // The big artwork and swipe hint made room; the controls are all there.
+    expect(find.text('Swipe up to like • swipe down to skip & dislike'),
+        findsNothing);
+    for (final tooltip in ['Play', 'Next', 'Previous', 'Queue', 'Hide track info']) {
+      expect(find.byTooltip(tooltip), findsOneWidget, reason: tooltip);
+    }
+    // The controls sit above the lyrics.
+    expect(tester.getCenter(find.byTooltip('Play')).dy,
+        lessThan(tester.getCenter(find.text('Second line')).dy));
+
+    // Info tab: the song's details, and Edit info.
+    await tester.tap(find.text('Info'));
+    await tester.pumpAndSettle();
+    expect(find.text('Singer'), findsWidgets);
+    expect(find.text('Edit info'), findsOneWidget);
+
+    // ⓘ again: back to the big view; the tab is remembered.
+    await tester.tap(find.byTooltip('Hide track info'));
+    await tester.pumpAndSettle();
+    expect(find.byType(LyricsView), findsNothing);
+    expect(NowPlayingPage.detailsTab, 1);
   });
 
   testWidgets('synced lyrics: the line being sung is the bright one',
@@ -77,11 +109,10 @@ void main() {
         .restore([song], position: const Duration(seconds: 11));
     final fake = _FakeLyrics(LyricsLookup(LyricsStatus.found, synced()));
 
-    await tester.pumpWidget(MaterialApp(home: LyricsPage(service: fake)));
+    await tester.pumpWidget(view(fake));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 
-    expect(find.text('Song · Singer'), findsOneWidget);
     expect(find.text('Lyrics from LRCLIB'), findsOneWidget);
     expect(find.text('First line'), findsOneWidget);
     expect(find.text('Third line'), findsOneWidget);
@@ -100,7 +131,7 @@ void main() {
     final fake = _FakeLyrics(LyricsLookup(LyricsStatus.found,
         const Lyrics(plain: 'Some words\nMore words', source: 'LRCLIB')));
 
-    await tester.pumpWidget(MaterialApp(home: LyricsPage(service: fake)));
+    await tester.pumpWidget(view(fake));
     await tester.pumpAndSettle();
 
     expect(find.text('Some words\nMore words'), findsOneWidget);
@@ -112,7 +143,7 @@ void main() {
     MusicPlayerService.handler.restore([song]);
     final fake = _FakeLyrics(const LyricsLookup(LyricsStatus.notFound));
 
-    await tester.pumpWidget(MaterialApp(home: LyricsPage(service: fake)));
+    await tester.pumpWidget(view(fake));
     await tester.pumpAndSettle();
     expect(find.text('No lyrics found for this song.'), findsOneWidget);
 
@@ -129,7 +160,7 @@ void main() {
     MusicPlayerService.handler.restore([song]);
     final fake = _FakeLyrics(const LyricsLookup(LyricsStatus.unavailable));
 
-    await tester.pumpWidget(MaterialApp(home: LyricsPage(service: fake)));
+    await tester.pumpWidget(view(fake));
     await tester.pumpAndSettle();
     expect(find.textContaining("Couldn't reach"), findsOneWidget);
 
@@ -145,13 +176,12 @@ void main() {
     MusicPlayerService.handler.restore([song]);
     final fake = _FakeLyrics(const LyricsLookup(LyricsStatus.notFound));
 
-    await tester.pumpWidget(MaterialApp(home: LyricsPage(service: fake)));
+    await tester.pumpWidget(view(fake));
     await tester.pumpAndSettle();
     MusicPlayerService.handler.restore([other]);
     await tester.pumpAndSettle();
 
     expect(fake.calls.map((c) => c.$1), [song.id, other.id]);
-    expect(find.text('Other'), findsOneWidget);
   });
 
   testWidgets('on a narrow phone every Now Playing button still fits',
@@ -159,6 +189,10 @@ void main() {
     tester.view.physicalSize = const Size(320, 640);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
+    final before = LyricsService.instance;
+    LyricsService.instance =
+        _FakeLyrics(LyricsLookup(LyricsStatus.found, synced()));
+    addTearDown(() => LyricsService.instance = before);
     MusicPlayerService.handler.restore([song]);
 
     await tester.pumpWidget(const MaterialApp(home: NowPlayingPage()));
@@ -166,9 +200,17 @@ void main() {
 
     // An overflowing Row would have thrown a layout error by now.
     expect(tester.takeException(), isNull);
-    for (final tooltip in ['Repeat off', 'Lyrics', 'Queue', 'Track info']) {
+    for (final tooltip in ['Repeat off', 'Queue', 'Track info']) {
       final center = tester.getCenter(find.byTooltip(tooltip));
       expect(center.dx, inInclusiveRange(0, 320), reason: tooltip);
     }
+
+    // With the panel open on a small screen the controls still fit and
+    // the tabs get what's left.
+    await tester.tap(find.byTooltip('Track info'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Lyrics'), findsOneWidget);
+    expect(tester.getBottomLeft(find.byTooltip('Queue')).dy, lessThan(640));
   });
 }

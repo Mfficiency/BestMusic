@@ -31,7 +31,10 @@ relates to BestToDo, where it came from).
 
 1. Bump version + CHANGELOG entry for every feature batch (user-facing bullets).
 2. Commit to `dev`, push. Branch flow: feature → dev → staging → main; each push ships that
-   channel.
+   channel. **Always merge finished work into `dev` and push it, without asking** — the owner
+   has said so explicitly ("Always always merge!"). Working on a feature branch is fine, but
+   every finished change ends merged into `dev` (resolve version/CHANGELOG conflicts by taking
+   the next free version number) with full tests green first.
 3. Keep `SPEC.md` updated when adding/changing features.
 
 ## Architecture in one minute

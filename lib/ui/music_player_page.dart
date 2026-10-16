@@ -34,6 +34,7 @@ import 'music_wishlist_page.dart';
 import 'now_playing_highlight.dart';
 import 'now_playing_page.dart';
 import 'play_history_page.dart';
+import 'playlist_edit.dart';
 import 'rule_playlist_editor_page.dart';
 import 'startup_times_page.dart';
 import 'server_tab.dart';
@@ -952,31 +953,10 @@ class _PlaylistsTab extends StatelessWidget {
 
   Widget? _trailingFor(BuildContext context, MusicPlaylist playlist) {
     // System entries (Favorites/"Don't really like" plus every computed
-    // smart playlist) can't be renamed or deleted.
-    if (playlist.isSystem) return null;
-    if (playlist.kind == PlaylistKind.rule) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.edit_outlined),
-            tooltip: 'Edit rules',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => RulePlaylistEditorPage(existing: playlist),
-            )),
-          ),
-          _deleteButton(playlist),
-        ],
-      );
-    }
-    return _deleteButton(playlist);
+    // smart playlist) can't be renamed, edited or deleted.
+    if (!playlistIsEditable(playlist)) return null;
+    return PlaylistOptionsButton(playlist: playlist);
   }
-
-  Widget _deleteButton(MusicPlaylist playlist) => IconButton(
-        icon: const Icon(Icons.delete_outline),
-        tooltip: 'Delete playlist',
-        onPressed: () => MusicPlaylistService.instance.deletePlaylist(playlist.id),
-      );
 
   @override
   Widget build(BuildContext context) {
@@ -1098,6 +1078,13 @@ class MusicPlaylistDetailPage extends StatelessWidget {
                   onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => AddSongsToPlaylistPage(playlistId: current.id),
                   )),
+                ),
+              if (playlistIsEditable(current))
+                PlaylistOptionsButton(
+                  playlist: current,
+                  onDeleted: () {
+                    if (context.mounted) Navigator.of(context).pop();
+                  },
                 ),
             ],
           ),
@@ -1626,22 +1613,33 @@ class _TrackListViewState extends State<TrackListView> {
 /// [TextEditingController] in a dedicated [StatefulWidget] rather than one
 /// disposed right after `showDialog` returns — the exit animation still
 /// builds the fields after the pop.
-Future<String?> promptPlaylistName(BuildContext context) {
+Future<String?> promptPlaylistName(BuildContext context,
+    {String title = 'New playlist',
+    String initial = '',
+    String action = 'Create'}) {
   return showDialog<String>(
     context: context,
-    builder: (_) => const _PlaylistNameDialog(),
+    builder: (_) =>
+        _PlaylistNameDialog(title: title, initial: initial, action: action),
   );
 }
 
 class _PlaylistNameDialog extends StatefulWidget {
-  const _PlaylistNameDialog();
+  const _PlaylistNameDialog(
+      {required this.title, required this.initial, required this.action});
+
+  final String title;
+  final String initial;
+  final String action;
 
   @override
   State<_PlaylistNameDialog> createState() => _PlaylistNameDialogState();
 }
 
 class _PlaylistNameDialogState extends State<_PlaylistNameDialog> {
-  final _controller = TextEditingController();
+  late final _controller = TextEditingController(text: widget.initial)
+    ..selection =
+        TextSelection(baseOffset: 0, extentOffset: widget.initial.length);
 
   @override
   void dispose() {
@@ -1654,7 +1652,7 @@ class _PlaylistNameDialogState extends State<_PlaylistNameDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('New playlist'),
+      title: Text(widget.title),
       content: TextField(
         controller: _controller,
         autofocus: true,
@@ -1666,7 +1664,7 @@ class _PlaylistNameDialogState extends State<_PlaylistNameDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        FilledButton(onPressed: _submit, child: const Text('Create')),
+        FilledButton(onPressed: _submit, child: Text(widget.action)),
       ],
     );
   }

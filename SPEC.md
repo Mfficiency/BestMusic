@@ -2188,3 +2188,19 @@ becomes the open default. The day header's subtitle is the short date plus the c
 "Fri 16.10.26 · 5 played" (`playHistoryShortDate`: `ddd dd.mm.yy`), under the
 "Today"/"Yesterday"/"Thursday 15 October" title. Test: `test/music/play_history_page_test.dart`.
 
+### 10.6z Playlists: rename, edit, delete (Best Music 0.3.50)
+
+`lib/ui/playlist_edit.dart`. Every hand-built, imported or rule playlist
+(`playlistIsEditable`: not system, kind list or rule) gets a `PlaylistOptionsButton` (⋮, tooltip
+"Playlist options") on its Playlists-tab row (replacing the old delete / edit-rules icons) and in
+its `MusicPlaylistDetailPage` app bar: **Rename** (`promptPlaylistName` with title "Rename
+playlist", the old name pre-selected, "Save" → `MusicPlaylistService.renamePlaylist`, which
+ignores system playlists and blank names), **Edit songs** / **Edit rules**
+(`openPlaylistEditor`: `EditPlaylistSongsPage` for a list, `RulePlaylistEditorPage` for a rule
+playlist) and **Delete** (`confirmDeletePlaylist`: "Delete "<name>"?" — the songs stay; from the
+playlist's own page the page closes after). `EditPlaylistSongsPage`: a `ReorderableListView` of
+the resolved songs with a drag handle each, "Remove from playlist" per row, and Rename / Add
+songs in the app bar; a drag saves through `MusicPlaylistService.setTrackOrder(id, ordered)`,
+which keeps ids not shown (songs no longer in the library) at the end. Every change saves at
+once. Test: `test/music/playlist_edit_test.dart`.
+

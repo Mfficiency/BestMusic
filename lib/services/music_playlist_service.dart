@@ -193,6 +193,35 @@ class MusicPlaylistService {
     return playlist;
   }
 
+  /// Renames a hand-built, imported or rule playlist. No-op for a system
+  /// playlist or a blank name.
+  Future<void> renamePlaylist(String id, String name) async {
+    final playlist = byId(id);
+    final trimmed = name.trim();
+    if (playlist == null || playlist.isSystem || trimmed.isEmpty) return;
+    playlist.name = trimmed;
+    playlists.value = [...playlists.value];
+    await _save();
+  }
+
+  /// Puts [ordered] (track ids, e.g. after a drag on the edit page) as the
+  /// playlist's order. Ids of the playlist missing from [ordered] (songs no
+  /// longer in the library, so not shown) stay, at the end; ids not in the
+  /// playlist are ignored.
+  Future<void> setTrackOrder(String id, List<String> ordered) async {
+    final playlist = byId(id);
+    if (playlist == null || playlist.kind != PlaylistKind.list) return;
+    final current = playlist.trackIds.toSet();
+    final front = [for (final t in ordered) if (current.contains(t)) t];
+    final shown = front.toSet();
+    playlist.trackIds = [
+      ...front,
+      for (final t in playlist.trackIds) if (!shown.contains(t)) t,
+    ];
+    playlists.value = [...playlists.value];
+    await _save();
+  }
+
   Future<void> deletePlaylist(String id) async {
     final playlist = byId(id);
     if (playlist == null || playlist.isSystem) return;

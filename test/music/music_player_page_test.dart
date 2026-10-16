@@ -703,6 +703,85 @@ void main() {
           'Sep 2026');
     });
 
+    test('times played sorts most played first by default, and back', () {
+      final played = [
+        tracks[0].copyWith(playCount: 3), // Bravo
+        tracks[1].copyWith(playCount: 12), // alpha
+        tracks[2], // Charlie, never played
+        tracks[3].copyWith(playCount: 3), // Delta (tie with Bravo → title)
+      ];
+      expect(trackSortDefaultAscending(TrackSortField.playCount), isFalse);
+      expect(titles(sortTracks(played, TrackSortField.playCount)),
+          ['alpha', 'Bravo', 'Delta', 'Charlie']);
+      expect(
+          titles(sortTracks(played, TrackSortField.playCount, ascending: true)),
+          ['Charlie', 'Bravo', 'Delta', 'alpha']);
+      expect(trackSortLabel(TrackSortField.playCount), 'Times played');
+      expect(trackSortDirectionLabel(TrackSortField.playCount, false),
+          'Most played first');
+      expect(trackSectionLabel(played[1], TrackSortField.playCount), '12 plays');
+      expect(trackSectionLabel(played[2], TrackSortField.playCount), '0 plays');
+      expect(playCountLabel(1), '1 play');
+    });
+
+    test('playlist order keeps the given order, or reverses it', () {
+      expect(titles(sortTracks(tracks, TrackSortField.listOrder)),
+          ['Bravo', 'alpha', 'Charlie', 'Delta']);
+      expect(
+          titles(sortTracks(tracks, TrackSortField.listOrder, ascending: false)),
+          ['Delta', 'Charlie', 'alpha', 'Bravo']);
+    });
+
+    testWidgets('picking Times played orders the list and shows the counts',
+        (tester) async {
+      final played = [
+        tracks[0].copyWith(playCount: 3),
+        tracks[1].copyWith(playCount: 12),
+        tracks[2],
+      ];
+      await tester.pumpWidget(
+          MaterialApp(home: Scaffold(body: TrackListView(tracks: played))));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Sort tracks'));
+      await tester.pumpAndSettle();
+      // Not a playlist: no "Playlist order" choice.
+      expect(find.text('Playlist order'), findsNothing);
+      await tester.tap(find.text('Times played').last);
+      await tester.pumpAndSettle();
+
+      double y(String text) => tester.getTopLeft(find.text(text)).dy;
+      expect(find.text('Most played first'), findsOneWidget);
+      expect(y('alpha'), lessThan(y('Bravo')));
+      expect(y('Bravo'), lessThan(y('Charlie')));
+      expect(find.text('Mia · 12 plays'), findsOneWidget);
+      expect(find.text('Abe · 0 plays'), findsOneWidget);
+      expect(Config.musicTrackSortField, 'playCount');
+    });
+
+    testWidgets('a playlist page offers Playlist order; other lists fall back',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+          home: Scaffold(
+              body: TrackListView(tracks: tracks, listOrder: true))));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Sort tracks'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Playlist order').last);
+      await tester.pumpAndSettle();
+
+      double y(String text) => tester.getTopLeft(find.text(text)).dy;
+      expect(find.text('First to last'), findsOneWidget);
+      expect(y('Bravo'), lessThan(y('alpha')));
+      expect(y('alpha'), lessThan(y('Charlie')));
+      expect(Config.musicTrackSortField, 'listOrder');
+
+      // The same remembered choice on a list that isn't a playlist.
+      await tester.pumpWidget(
+          MaterialApp(home: Scaffold(body: TrackListView(tracks: tracks))));
+      await tester.pumpAndSettle();
+      expect(find.text('Added to device'), findsOneWidget);
+    });
+
     test('section labels follow the sort field', () {
       expect(trackSectionLabel(tracks[1], TrackSortField.title), 'A');
       expect(trackSectionLabel(tracks[0], TrackSortField.artist), 'Z');

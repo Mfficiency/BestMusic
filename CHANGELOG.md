@@ -5,6 +5,10 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.51] - 2026-10-16
+- Song lists and playlists can be sorted by "Times played" (most played first, or least played first). Each song then shows how many times it was played.
+- Playlists can also be shown in their own order ("Playlist order"): the order you dragged them into on Edit songs, or the order of Last Added and Most Played.
+
 ## [0.3.50] - 2026-10-16
 - Playlists: every playlist you made (or imported, or built from rules) has a ⋮ menu, on the Playlists tab and on the playlist itself, with Rename, Edit and Delete.
 - Edit songs: drag songs into a new order, remove songs, or add more with +. Every change is saved right away.

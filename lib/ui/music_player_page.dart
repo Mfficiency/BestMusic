@@ -1101,6 +1101,9 @@ class MusicPlaylistDetailPage extends StatelessWidget {
               }
               return TrackListView(
                 tracks: tracks,
+                // Its own order (dragged on Edit songs, or a smart list's
+                // computed order) is one of the sort choices.
+                listOrder: true,
                 onRemove: editable
                     ? (track) =>
                         MusicPlaylistService.instance.removeFrom(current.id, track.id)
@@ -1187,7 +1190,17 @@ class _AddSongsToPlaylistPageState extends State<AddSongsToPlaylistPage> {
 /// ascending or descending; see [trackSortDefaultAscending]. [deviceDate]
 /// is when the file arrived on the phone/computer ([Track.deviceDate]),
 /// [dateAdded] when Best Music's scan first saw it ([Track.dateAdded]).
-enum TrackSortField { deviceDate, dateAdded, title, artist, duration }
+/// [listOrder] is a playlist's own order (as dragged on its Edit songs
+/// page) and only offered on playlist pages ([TrackListView.listOrder]).
+enum TrackSortField {
+  deviceDate,
+  dateAdded,
+  title,
+  artist,
+  duration,
+  playCount,
+  listOrder,
+}
 
 String trackSortLabel(TrackSortField field) {
   switch (field) {
@@ -1201,6 +1214,10 @@ String trackSortLabel(TrackSortField field) {
       return 'Artist';
     case TrackSortField.duration:
       return 'Duration';
+    case TrackSortField.playCount:
+      return 'Times played';
+    case TrackSortField.listOrder:
+      return 'Playlist order';
   }
 }
 
@@ -1215,13 +1232,20 @@ String trackSortDirectionLabel(TrackSortField field, bool ascending) {
       return ascending ? 'A–Z' : 'Z–A';
     case TrackSortField.duration:
       return ascending ? 'Shortest first' : 'Longest first';
+    case TrackSortField.playCount:
+      return ascending ? 'Least played first' : 'Most played first';
+    case TrackSortField.listOrder:
+      return ascending ? 'First to last' : 'Last to first';
   }
 }
 
-/// The direction a field starts in when first picked: newest/longest first
-/// for dates and durations, A–Z for text.
+/// The direction a field starts in when first picked: newest/longest/most
+/// played first for dates, durations and play counts, A–Z for text, first
+/// to last for a playlist's own order.
 bool trackSortDefaultAscending(TrackSortField field) =>
-    field == TrackSortField.title || field == TrackSortField.artist;
+    field == TrackSortField.title ||
+    field == TrackSortField.artist ||
+    field == TrackSortField.listOrder;
 
 String _trackDisplayTitle(Track t) => t.displayTitle;
 
@@ -1234,6 +1258,10 @@ DateTime? _trackSortDate(Track t, TrackSortField field) =>
 List<Track> sortTracks(List<Track> tracks, TrackSortField field,
     {bool? ascending}) {
   final asc = ascending ?? trackSortDefaultAscending(field);
+  // A playlist's own order: as given, or reversed.
+  if (field == TrackSortField.listOrder) {
+    return asc ? [...tracks] : tracks.reversed.toList();
+  }
   final sign = asc ? 1 : -1;
   int byTitle(Track a, Track b) => _trackDisplayTitle(a)
       .toLowerCase()
@@ -1260,6 +1288,11 @@ List<Track> sortTracks(List<Track> tracks, TrackSortField field,
       case TrackSortField.duration:
         primary = sign * (a.durationMs ?? 0).compareTo(b.durationMs ?? 0);
         break;
+      case TrackSortField.playCount:
+        primary = sign * a.playCount.compareTo(b.playCount);
+        break;
+      case TrackSortField.listOrder:
+        return 0; // handled above
     }
     return primary != 0 ? primary : byTitle(a, b);
   });
@@ -1305,17 +1338,29 @@ String trackSectionLabel(Track track, TrackSortField field) {
       final ms = track.durationMs;
       if (ms == null) return '—';
       return '${ms ~/ 60000} min';
+    case TrackSortField.playCount:
+      return playCountLabel(track.playCount);
+    case TrackSortField.listOrder:
+      return '—';
   }
 }
+
+/// "1 play", "12 plays".
+String playCountLabel(int count) => count == 1 ? '1 play' : '$count plays';
 
 /// Shared track list used by the Tracks/Favourites tabs, artist/folder
 /// drill-downs, search results and playlist detail pages. Tapping a row
 /// plays the whole (sorted) list starting from that track; the header row
 /// offers a quick sort menu plus shuffle/play-all, Samsung Music style.
 class TrackListView extends StatefulWidget {
-  const TrackListView({super.key, required this.tracks, this.onRemove});
+  const TrackListView(
+      {super.key, required this.tracks, this.onRemove, this.listOrder = false});
 
   final List<Track> tracks;
+
+  /// [tracks] is a playlist in its own order: offers "Playlist order" in
+  /// the sort menu. Elsewhere that choice falls back to "Added to device".
+  final bool listOrder;
 
   /// When set, each row's "more options" menu gets a "Remove from
   /// playlist" entry — only passed by [MusicPlaylistDetailPage] for a
@@ -1336,9 +1381,17 @@ class _TrackListViewState extends State<TrackListView> {
   /// Picking the field already in use flips its direction; picking a new
   /// one starts it in that field's natural direction. Remembered in
   /// [Config] so every track list (and the next launch) follows it.
+  /// The order this list shows: [_sortField], except "Playlist order" on
+  /// a list that isn't a playlist.
+  TrackSortField get _shownField =>
+      _sortField == TrackSortField.listOrder && !widget.listOrder
+          ? TrackSortField.deviceDate
+          : _sortField;
+
   void _selectSort(TrackSortField field) {
     setState(() {
-      if (field == _sortField) {
+      if (field == _shownField) {
+        _sortField = field;
         _ascending = !_ascending;
       } else {
         _sortField = field;
@@ -1370,7 +1423,8 @@ class _TrackListViewState extends State<TrackListView> {
 
   @override
   Widget build(BuildContext context) {
-    final tracks = sortTracks(widget.tracks, _sortField, ascending: _ascending);
+    final field = _shownField;
+    final tracks = sortTracks(widget.tracks, field, ascending: _ascending);
     return Column(
       children: [
         Padding(
@@ -1380,23 +1434,24 @@ class _TrackListViewState extends State<TrackListView> {
               Flexible(
                 child: PopupMenuButton<TrackSortField>(
                   tooltip: 'Sort tracks',
-                  initialValue: _sortField,
+                  initialValue: field,
                   onSelected: _selectSort,
                   itemBuilder: (context) => [
-                    for (final field in TrackSortField.values)
+                    for (final option in TrackSortField.values.where((f) =>
+                        f != TrackSortField.listOrder || widget.listOrder))
                       PopupMenuItem(
-                        value: field,
+                        value: option,
                         child: Row(
                           children: [
-                            if (field == _sortField)
+                            if (option == field)
                               const Icon(Icons.check, size: 18)
                             else
                               const SizedBox(width: 18),
                             const SizedBox(width: 8),
                             Flexible(
-                                child: Text(trackSortLabel(field),
+                                child: Text(trackSortLabel(option),
                                     overflow: TextOverflow.ellipsis)),
-                            if (field == _sortField) ...[
+                            if (option == field) ...[
                               const SizedBox(width: 8),
                               Icon(
                                   _ascending
@@ -1414,7 +1469,7 @@ class _TrackListViewState extends State<TrackListView> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Flexible(
-                          child: Text(trackSortLabel(_sortField),
+                          child: Text(trackSortLabel(field),
                               overflow: TextOverflow.ellipsis),
                         ),
                         const Icon(Icons.arrow_drop_down),
@@ -1429,7 +1484,7 @@ class _TrackListViewState extends State<TrackListView> {
                 icon: Icon(
                     _ascending ? Icons.arrow_upward : Icons.arrow_downward,
                     size: 18),
-                label: Text(trackSortDirectionLabel(_sortField, _ascending)),
+                label: Text(trackSortDirectionLabel(field, _ascending)),
               ),
               const Spacer(),
               IconButton(
@@ -1449,7 +1504,7 @@ class _TrackListViewState extends State<TrackListView> {
         Expanded(
           child: FastScrollList(
             itemCount: tracks.length,
-            labelFor: (index) => trackSectionLabel(tracks[index], _sortField),
+            labelFor: (index) => trackSectionLabel(tracks[index], field),
             // Every row is one fixed two-line height (long titles ellipsize)
             // so the fast-scroll handle maps exactly onto a row.
             prototypeItem: const ListTile(
@@ -1474,10 +1529,15 @@ class _TrackListViewState extends State<TrackListView> {
                     title: Text(_trackDisplayTitle(track),
                         maxLines: 1, overflow: TextOverflow.ellipsis),
                     // Always two lines (matching the prototype row height).
+                    // Sorted by times played: the count is shown too.
                     subtitle: Text(
-                        track.displayArtist.isNotEmpty
-                            ? track.displayArtist
-                            : 'Unknown artist',
+                        [
+                          track.displayArtist.isNotEmpty
+                              ? track.displayArtist
+                              : 'Unknown artist',
+                          if (field == TrackSortField.playCount)
+                            playCountLabel(track.playCount),
+                        ].join(' · '),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
                     trailing: PopupMenuButton<String>(

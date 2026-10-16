@@ -2204,3 +2204,15 @@ songs in the app bar; a drag saves through `MusicPlaylistService.setTrackOrder(i
 which keeps ids not shown (songs no longer in the library) at the end. Every change saves at
 once. Test: `test/music/playlist_edit_test.dart`.
 
+### 10.6aa Sort by times played, playlist order (Best Music 0.3.51)
+
+`TrackSortField` gains `playCount` ("Times played": most played first by default, "Least played
+first" flipped; ties by title; fast-scroll bubble "12 plays"; while it's the sort, each row's
+subtitle adds "· N plays" via `playCountLabel`) and `listOrder` ("Playlist order": the list as
+given, or reversed — "First to last"/"Last to first"). `listOrder` is only offered where
+`TrackListView(listOrder: true)`, which `MusicPlaylistDetailPage` passes for every playlist (its
+`resolvedTracks` order: the order dragged on Edit songs, or Last Added/Most Played's computed
+order). The choice is shared through `Config.musicTrackSortField` like the others; a list that
+isn't a playlist shows "Added to device" while "Playlist order" is the remembered choice
+(`_shownField`). Tests: `test/music/music_player_page_test.dart` (track sorting).
+

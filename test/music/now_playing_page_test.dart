@@ -71,6 +71,18 @@ void main() {
     expect(find.byTooltip('Shuffle off'), findsOneWidget);
   });
 
+  testWidgets('tapping repeat cycles off, all, one and back to off',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: NowPlayingPage()));
+    await tester.pumpAndSettle();
+
+    for (final next in ['Repeat all', 'Repeat one', 'Repeat off']) {
+      await tester.tap(find.byTooltip(RegExp('^Repeat ')));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip(next), findsOneWidget);
+    }
+  });
+
   testWidgets('tapping the queue button opens the Queue page',
       (tester) async {
     await tester.pumpWidget(const MaterialApp(home: NowPlayingPage()));

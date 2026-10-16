@@ -1,3 +1,5 @@
+import 'package:audio_service/audio_service.dart';
+import 'package:best_music/config.dart';
 import 'package:best_music/models/track.dart';
 import 'package:best_music/services/music_audio_handler.dart';
 import 'package:best_music/services/music_library_service.dart';
@@ -81,5 +83,52 @@ void main() {
 
     expect(MusicPlaylistService.instance.isFavorite(id), isTrue);
     expect(MusicLibraryService.instance.byId(id)!.upSwipeCount, 2);
+  });
+
+  group('repeat', () {
+    test('the button cycles off → all → one → off', () {
+      expect(MusicRepeatMode.off.next, MusicRepeatMode.all);
+      expect(MusicRepeatMode.all.next, MusicRepeatMode.one);
+      expect(MusicRepeatMode.one.next, MusicRepeatMode.off);
+      expect(MusicRepeatMode.fromName('one'), MusicRepeatMode.one);
+      expect(MusicRepeatMode.fromName('nonsense'), MusicRepeatMode.off);
+      expect(MusicRepeatMode.fromName(null), MusicRepeatMode.off);
+    });
+
+    test('repeat all wraps the queue both ways; off and one leave it',
+        () {
+      for (final mode in MusicRepeatMode.values) {
+        expect(MusicAudioHandler.wrapIndex(1, 3, mode), 1);
+      }
+      expect(MusicAudioHandler.wrapIndex(3, 3, MusicRepeatMode.all), 0);
+      expect(MusicAudioHandler.wrapIndex(-1, 3, MusicRepeatMode.all), 2);
+      // Off/one: past the end is left to the library-shuffle fallback.
+      expect(MusicAudioHandler.wrapIndex(3, 3, MusicRepeatMode.off), 3);
+      expect(MusicAudioHandler.wrapIndex(3, 3, MusicRepeatMode.one), 3);
+      expect(MusicAudioHandler.wrapIndex(-1, 3, MusicRepeatMode.off), -1);
+      expect(MusicAudioHandler.wrapIndex(0, 0, MusicRepeatMode.all), 0);
+    });
+
+    test('cycleRepeat updates the button, the media session and Config',
+        () async {
+      Config.musicRepeatMode = 'off';
+      final handler = handlerWithQueue();
+      expect(handler.repeatMode.value, MusicRepeatMode.off);
+
+      await handler.cycleRepeat();
+      expect(handler.repeatMode.value, MusicRepeatMode.all);
+      expect(Config.musicRepeatMode, 'all');
+      expect(handler.playbackState.value.repeatMode,
+          AudioServiceRepeatMode.all);
+
+      // Bluetooth/car controls go through setRepeatMode.
+      await handler.setRepeatMode(AudioServiceRepeatMode.one);
+      expect(handler.repeatMode.value, MusicRepeatMode.one);
+      expect(Config.musicRepeatMode, 'one');
+
+      // A new handler (next app start) starts from the remembered mode.
+      expect(MusicAudioHandler().repeatMode.value, MusicRepeatMode.one);
+      Config.musicRepeatMode = 'off';
+    });
   });
 }

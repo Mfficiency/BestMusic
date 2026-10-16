@@ -5,6 +5,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart' show ValueNotifier, kIsWeb;
 import 'package:just_audio/just_audio.dart' as ja;
 
+import '../config.dart';
 import '../models/track.dart';
 import '../models/youtube_feed.dart';
 import 'media_volume.dart';
@@ -20,6 +21,41 @@ import 'server_offline_store.dart';
 import 'subsonic_client.dart';
 import 'youtube_audio_source.dart';
 import 'youtube_feed_service.dart';
+
+/// Now Playing's repeat button, cycled by [MusicAudioHandler.cycleRepeat]
+/// and remembered in [Config.musicRepeatMode]: [off] keeps going after the
+/// queue's last song with a fresh shuffle of the library (what Best Music
+/// always did), [all] starts the same queue again from its first song, and
+/// [one] plays the current song again each time it ends (Next still moves
+/// on).
+enum MusicRepeatMode {
+  off,
+  all,
+  one;
+
+  /// The mode the button switches to next: off → all → one → off.
+  MusicRepeatMode get next =>
+      MusicRepeatMode.values[(index + 1) % MusicRepeatMode.values.length];
+
+  /// The mode saved as [name]; anything unknown is [off].
+  static MusicRepeatMode fromName(String? name) => MusicRepeatMode.values
+      .firstWhere((m) => m.name == name, orElse: () => MusicRepeatMode.off);
+
+  AudioServiceRepeatMode get asAudioService => switch (this) {
+        MusicRepeatMode.off => AudioServiceRepeatMode.none,
+        MusicRepeatMode.all => AudioServiceRepeatMode.all,
+        MusicRepeatMode.one => AudioServiceRepeatMode.one,
+      };
+
+  static MusicRepeatMode fromAudioService(AudioServiceRepeatMode mode) =>
+      switch (mode) {
+        AudioServiceRepeatMode.none => MusicRepeatMode.off,
+        AudioServiceRepeatMode.one => MusicRepeatMode.one,
+        AudioServiceRepeatMode.all ||
+        AudioServiceRepeatMode.group =>
+          MusicRepeatMode.all,
+      };
+}
 
 /// A paused queue kept aside for [MusicAudioHandler.switchToOtherSession]:
 /// the last music queue while a Subscriptions video plays, or the last
@@ -76,6 +112,10 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
   /// turning shuffle back off can restore it. Cleared by a manual
   /// [reorderQueue] so a drag edit isn't silently discarded later.
   List<Track>? _preShuffleOrder;
+
+  /// See [MusicRepeatMode]; the Now Playing repeat button listens to this.
+  final ValueNotifier<MusicRepeatMode> repeatMode =
+      ValueNotifier(MusicRepeatMode.fromName(Config.musicRepeatMode));
 
   // just_audio's playbackEventStream only fires on discrete state changes
   // (buffering, track load, pause/play), not once a second — without this,
@@ -151,6 +191,13 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
             await _player.seek(Duration.zero);
             _persist();
           }));
+          return;
+        }
+        // Repeat one: the same song again, from the top (and in the play
+        // history again, like any other play).
+        if (finished != null && repeatMode.value == MusicRepeatMode.one) {
+          unawaited(PlayHistoryService.instance.record(finished));
+          unawaited(_player.seek(Duration.zero).then((_) => _player.play()));
           return;
         }
         _advance(1, wrapWithReshuffle: true);
@@ -242,6 +289,7 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
           : (_resumePosition ?? Duration.zero),
       bufferedPosition: _player.bufferedPosition,
       speed: _player.speed,
+      repeatMode: repeatMode.value.asAudioService,
       queueIndex: _queueIndex >= 0 ? _queueIndex : null,
     ));
   }
@@ -708,7 +756,7 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
 
   Future<void> _advance(int delta, {required bool wrapWithReshuffle}) async {
     if (_queue.isEmpty) return;
-    var next = _queueIndex + delta;
+    var next = wrapIndex(_queueIndex + delta, _queue.length, repeatMode.value);
     if (next >= _queue.length) {
       if (!wrapWithReshuffle) return;
       // The end of a Subscriptions-feed queue is the end, not a cue to
@@ -728,6 +776,34 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
     if (next != _queueIndex) _resumePosition = null;
     _queueIndex = next;
     await _playCurrent();
+  }
+
+  /// Where Next/Previous (or a song ending) lands for queue position
+  /// [next] in a queue of [length] songs: with [MusicRepeatMode.all] past
+  /// the last song is the first again, and before the first is the last;
+  /// otherwise [next] unchanged (past the end then means "keep going with
+  /// a library shuffle", before the start means "stay on the first").
+  static int wrapIndex(int next, int length, MusicRepeatMode mode) {
+    if (mode != MusicRepeatMode.all || length == 0) return next;
+    if (next >= length) return 0;
+    if (next < 0) return length - 1;
+    return next;
+  }
+
+  /// Now Playing's repeat button: off → all → one → off, remembered for
+  /// next time.
+  Future<void> cycleRepeat() => setRepeatMode(repeatMode.value.next.asAudioService);
+
+  /// Also what Bluetooth/car controls and Android's media controls call.
+  @override
+  Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
+    final mode = MusicRepeatMode.fromAudioService(repeatMode);
+    this.repeatMode.value = mode;
+    _broadcastState(_player.playbackEvent);
+    if (Config.musicRepeatMode != mode.name) {
+      Config.musicRepeatMode = mode.name;
+      await Config.save();
+    }
   }
 
   /// Toggles shuffle. Turning it on shuffles the not-yet-played tail of the
@@ -823,6 +899,7 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
     _positionTicker?.cancel();
     YoutubeFeedService.instance.settings.removeListener(applyCurrentVolume);
     shuffleEnabled.dispose();
+    repeatMode.dispose();
     videoSpeed.dispose();
     otherSession.dispose();
     await _player.dispose();

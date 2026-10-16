@@ -2151,3 +2151,63 @@ Tests: `test/music/play_history_service_test.dart`, `test/music/play_history_pag
   kind or nothing before (`whenLoaded`): right after loading, as before.
   Tests: `test/music/music_resume_test.dart` (pill hidden next to the bar's button, volume
   order), `test/music/now_playing_page_test.dart` (Add to playlist).
+
+### 10.6w Lyrics and Repeat on Now Playing (Best Music 0.3.47)
+
+Two ideas taken from the Obsidian Music Player app (`varun7009/obsidian-music`, a closed-source
+Android player whose repo holds only its README, screenshots and release notes): synced lyrics
+and a repeat button. Now Playing's tools row gains two buttons (Repeat, and Lyrics for songs),
+which makes eight for a song; on a phone narrower than 48 dp per button the row is scaled down
+to fit (`FittedBox`) rather than overflowing.
+
+- **Repeat** — `MusicRepeatMode { off, all, one }` on `MusicAudioHandler.repeatMode`
+  (`ValueNotifier`), cycled by `cycleRepeat()` (off → all → one → off) and saved as
+  `Config.musicRepeatMode` (`settings.json` key `musicRepeatMode`, `'off'`/`'all'`/`'one'`).
+  The button shows `repeat` / `repeat_one`, coloured when on; tooltips "Repeat off" / "Repeat
+  all" / "Repeat one". The mode is also reported in `PlaybackState.repeatMode`, and
+  `setRepeatMode` (what Bluetooth/car/Android media controls call) sets it.
+  - *off* is what Best Music always did: after the queue's last song, a fresh weighted shuffle
+    of the whole library (a Subscriptions-feed queue just stops).
+  - *all*: `_advance` runs the next position through `MusicAudioHandler.wrapIndex`, so past
+    the last song is the first again and Previous on the first is the last (feed queues
+    too).
+  - *one*: when a song ends (`ProcessingState.completed`, after the play count and the "end of
+    song" sleep timer are handled), it is rewound and played again, and recorded in the play
+    history again. Next/Previous still move on.
+- **Lyrics** — `lib/ui/lyrics_page.dart` (`LyricsPage`), opened by Now Playing's
+  `lyrics_outlined` button (tooltip "Lyrics", songs only). It follows the playing song (a new
+  `mediaItem` → a new lookup) and shows:
+  - *synced* lyrics as a column of lines: the one being sung (`Lyrics.indexAt`) is bright and
+    fills in character by character as it's sung (`Lyrics.progressAt`: LRC only gives line
+    starts, so a line is assumed to last 70 ms per character, at least 1.5 s, never past the
+    next line's start); the rest are dim. The page polls `playbackState.position` every 100 ms
+    and scrolls the current line to 40 % of the height (`Scrollable.ensureVisible`) unless the
+    user scrolled by hand in the last 4 s. Tapping a line seeks there. An empty LRC line
+    (instrumental break) shows as "♪".
+  - *plain* lyrics as selectable text, with a note that they aren't timed.
+  - messages for no lyrics ("Search again"), LRCLIB unreachable ("Try again"), instrumental,
+    and a Subscriptions video (they have a transcript instead).
+  The app bar's refresh button ("Search lyrics again") looks again, skipping the saved copy;
+  "Lyrics from …" under the lyrics names the source.
+- **Where lyrics come from** — `lib/services/lyrics_service.dart` (`LyricsService.lyricsFor`),
+  in order: (1) an `.lrc` file next to a local song (`Song.mp3` → `Song.lrc`, UTF-8 or
+  Latin-1); (2) the `USLT` frame of a local mp3's ID3v2 tag (the whole tag is read, size from
+  its header, at most 8 MiB, so big cover art in front doesn't hide it); (3) the saved result of
+  an earlier lookup, `lyrics/<sha1 of track id>.json` in the app documents dir (found lyrics and
+  "instrumental" for good, "nothing found" for 7 days); (4) LRCLIB (`lrclib.net`, free, no
+  account): `/api/get` with title, artist, album and length (seconds) first, then `/api/search`
+  per spelling from `queryVariants` (cleaned title, main artist, no brackets), each result scored
+  with the metadata lookup's `matchScore` (≥ `minMatchScore`), a synced record winning a tie.
+  Title/artist are `displayTitle`/`displayArtist`, so "Artist - Song" file names work. A
+  network failure, 429 or 5xx is reported as unavailable and not saved. Lookups only happen
+  while the lyrics page is open, so playing music uses no extra data.
+- **LRC parsing** — `lib/models/lyrics.dart` (`Lyrics.parseLrc`): `[mm:ss]`, `[mm:ss.x]`,
+  `[mm:ss.xx]`, `[mm:ss.xxx]` and `[mm:ss:xx]` stamps, several per line (a repeated chorus),
+  `[offset:±ms]` (positive = earlier), word stamps (`<mm:ss.xx>`) dropped, other `[tag:value]`
+  lines skipped, lines sorted by time (stable). Text without stamps becomes plain lyrics.
+  Tests: `test/music/lyrics_test.dart` (parser, `indexAt`, `progressAt`, JSON),
+  `test/music/lyrics_service_test.dart` (exact match, search fallback and scoring, the 7-day
+  "nothing found", instrumental, offline, `.lrc` file, ID3 `USLT`, videos),
+  `test/music/lyrics_page_test.dart` (button, sung line, plain, messages, following the song,
+  narrow phone), `test/music/music_audio_handler_test.dart` and
+  `test/music/now_playing_page_test.dart` (repeat).

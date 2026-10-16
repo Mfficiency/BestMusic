@@ -8,6 +8,7 @@ import '../services/music_player_service.dart';
 import '../services/speaker_play_guard.dart';
 import '../services/music_playlist_service.dart';
 import 'estimated_progress_bar.dart';
+import 'lyrics_page.dart';
 import 'music_player_page.dart' show showAddToPlaylistSheet;
 import 'music_mini_player_bar.dart'
     show SwitchSessionButton, switchSessionAndShow;
@@ -249,7 +250,9 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
 }
 
 /// The rest of the controls, under the transport: speed (videos), volume,
-/// sleep timer, shuffle, queue, add to playlist (songs) and track info.
+/// sleep timer, shuffle, repeat, queue, lyrics and add to playlist (songs)
+/// and track info. On a phone too narrow for all of them at full size the
+/// row shrinks to fit rather than overflow.
 class _ToolsRow extends StatelessWidget {
   const _ToolsRow({required this.handler});
 
@@ -259,53 +262,89 @@ class _ToolsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final track = handler.currentTrack;
     final video = track?.isFeedVideo ?? false;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        // Feed videos only: speed is a podcast/talk thing, not a
-        // local-music one.
-        PlaybackSpeedButton(visible: video),
-        // The phone's volume, remembered separately for music and videos.
-        IconButton(
-          icon: const Icon(Icons.volume_up_outlined),
-          tooltip: video ? 'Video volume' : 'Music volume',
-          onPressed: () => showVolumeSheet(context, video: video),
+    final buttons = <Widget>[
+      // Feed videos only: speed is a podcast/talk thing, not a
+      // local-music one.
+      PlaybackSpeedButton(visible: video),
+      // The phone's volume, remembered separately for music and videos.
+      IconButton(
+        icon: const Icon(Icons.volume_up_outlined),
+        tooltip: video ? 'Video volume' : 'Music volume',
+        onPressed: () => showVolumeSheet(context, video: video),
+      ),
+      const SleepTimerButton(),
+      ValueListenableBuilder<bool>(
+        valueListenable: handler.shuffleEnabled,
+        builder: (context, shuffleOn, _) => IconButton(
+          icon: const Icon(Icons.shuffle),
+          tooltip: shuffleOn ? 'Shuffle on' : 'Shuffle off',
+          color: shuffleOn ? Theme.of(context).colorScheme.primary : null,
+          onPressed: () => handler.toggleShuffle(),
         ),
-        const SleepTimerButton(),
-        ValueListenableBuilder<bool>(
-          valueListenable: handler.shuffleEnabled,
-          builder: (context, shuffleOn, _) => IconButton(
-            icon: const Icon(Icons.shuffle),
-            tooltip: shuffleOn ? 'Shuffle on' : 'Shuffle off',
-            color: shuffleOn ? Theme.of(context).colorScheme.primary : null,
-            onPressed: () => handler.toggleShuffle(),
-          ),
-        ),
-        IconButton(
-          icon: const Icon(Icons.queue_music),
-          tooltip: 'Queue',
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const QueuePage()),
-          ),
-        ),
-        // Songs only: Subscriptions videos aren't library tracks.
-        if (track != null && !video)
-          IconButton(
-            icon: const Icon(Icons.playlist_add),
-            tooltip: 'Add to playlist',
-            onPressed: () => showAddToPlaylistSheet(context, track),
-          ),
-        IconButton(
-          icon: const Icon(Icons.info_outline),
-          tooltip: 'Track info',
-          onPressed: track == null
+      ),
+      ValueListenableBuilder<MusicRepeatMode>(
+        valueListenable: handler.repeatMode,
+        builder: (context, mode, _) => IconButton(
+          icon: Icon(
+              mode == MusicRepeatMode.one ? Icons.repeat_one : Icons.repeat),
+          tooltip: switch (mode) {
+            MusicRepeatMode.off => 'Repeat off',
+            MusicRepeatMode.all => 'Repeat all',
+            MusicRepeatMode.one => 'Repeat one',
+          },
+          color: mode == MusicRepeatMode.off
               ? null
-              : () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => TrackMetadataPage(trackId: track.id),
-                  )),
+              : Theme.of(context).colorScheme.primary,
+          onPressed: () => handler.cycleRepeat(),
         ),
-      ],
-    );
+      ),
+      IconButton(
+        icon: const Icon(Icons.queue_music),
+        tooltip: 'Queue',
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const QueuePage()),
+        ),
+      ),
+      // Songs only: Subscriptions videos aren't library tracks (and have
+      // a transcript instead of lyrics).
+      if (track != null && !video)
+        IconButton(
+          icon: const Icon(Icons.lyrics_outlined),
+          tooltip: 'Lyrics',
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const LyricsPage()),
+          ),
+        ),
+      if (track != null && !video)
+        IconButton(
+          icon: const Icon(Icons.playlist_add),
+          tooltip: 'Add to playlist',
+          onPressed: () => showAddToPlaylistSheet(context, track),
+        ),
+      IconButton(
+        icon: const Icon(Icons.info_outline),
+        tooltip: 'Track info',
+        onPressed: track == null
+            ? null
+            : () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => TrackMetadataPage(trackId: track.id),
+                )),
+      ),
+    ];
+    return LayoutBuilder(builder: (context, constraints) {
+      // Every button is 48 wide; the speed button takes none for songs.
+      final needed = 48.0 * (buttons.length - (video ? 0 : 1));
+      final width = constraints.maxWidth;
+      final row = Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: buttons,
+      );
+      if (!width.isFinite || width >= needed) return row;
+      return FittedBox(
+        fit: BoxFit.scaleDown,
+        child: SizedBox(width: needed, child: row),
+      );
+    });
   }
 }
 

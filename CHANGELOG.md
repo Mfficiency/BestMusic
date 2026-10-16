@@ -5,6 +5,10 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.47] - 2026-10-16
+- Now Playing: new Lyrics button. The song's words scroll along as it plays, with the line being sung lighting up as it goes; tap a line to jump there. Lyrics come from an .lrc file next to the song, from the song's own tags, or from LRCLIB (free, online), and are kept on the phone once found.
+- Now Playing: new Repeat button. Tap it to go from off to repeat all (the queue starts over after its last song, instead of carrying on with a shuffle of your whole library) to repeat one (the song plays again each time it ends; Next still moves on). Bluetooth and car controls can switch it too, and it's remembered.
+
 ## [0.3.46] - 2026-10-15
 - Now Playing: new "Add to playlist" button, so you can put the song that's playing in a playlist (or a new one) straight away.
 - The round "back to music / back to videos" button no longer floats above the song bar when the bar already has that button.

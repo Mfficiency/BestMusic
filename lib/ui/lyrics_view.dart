@@ -142,7 +142,10 @@ class _LyricsViewState extends State<LyricsView> {
         child: Row(children: [
           Expanded(
             child: Text(
-                lyrics.source.isEmpty ? '' : 'Lyrics from ${lyrics.source}',
+                [
+                  if (lyrics.source.isNotEmpty) 'Lyrics from ${lyrics.source}',
+                  if (_lookup?.saved ?? false) 'saved on this phone',
+                ].join(' · '),
                 style: Theme.of(context).textTheme.bodySmall),
           ),
           IconButton(
@@ -189,9 +192,10 @@ class _LyricsViewState extends State<LyricsView> {
       case LyricsStatus.unavailable:
         return _Message(
           icon: Icons.cloud_off_outlined,
-          text: "Couldn't reach the lyrics service (LRCLIB). Check the "
-              'connection and try again.'
-              '${lookup.reason == null ? '' : '\n\n(${lookup.reason})'}',
+          // The actual reason, not a guess.
+          text: lookup.reason == null
+              ? "Couldn't reach the lyrics service (LRCLIB)."
+              : "Couldn't get lyrics: ${lookup.reason}.",
           action: 'Try again',
           onAction: () => _fetch(refresh: true),
         );

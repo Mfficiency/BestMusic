@@ -5,6 +5,11 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.57] - 2026-10-16
+- Now Playing: the volume button is gone (use the phone's volume keys; the music and video volumes are still in Settings).
+- Lyrics: no more tapping "Try again" several times. The app now retries by itself, and if it still can't get them it tells you the actual reason (for example "No internet: lrclib.net could not be found" or "LRCLIB server error 503").
+- Lyrics you've found once are kept on the phone and shown without a connection ("saved on this phone"). Searching again while offline no longer makes them disappear.
+
 ## [0.3.56] - 2026-10-16
 - Now Playing: the time played, the progress bar and the song's length are now on one line. Before the song's length is known the bar stays empty instead of showing full.
 - Lyrics: when the lyrics service can't be reached, it now tries once more, and the message says what went wrong (also in the app's logs). Songs named like "Artist ●● Song" (no artist tag) are now looked up as that artist and song.

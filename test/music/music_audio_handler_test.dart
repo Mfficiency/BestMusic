@@ -134,6 +134,16 @@ void main() {
     });
   });
 
+  test('replaceTrack swaps a renamed song in the queue', () {
+    final handler = handlerWithQueue(); // a (playing), b, c
+    final renamed = track('a2');
+    handler.replaceTrack('local:/fake/a.mp3', renamed);
+    expect(ids(handler).first, 'local:/fake/a2.mp3');
+    expect(handler.currentTrack!.id, 'local:/fake/a2.mp3');
+    expect(handler.mediaItem.value!.id, 'local:/fake/a2.mp3');
+    expect(NowPlaying.trackId.value, 'local:/fake/a2.mp3');
+  });
+
   test('addAllToMusicQueue keeps the selected songs in order', () async {
     final handler = handlerWithQueue(); // a (playing), b, c
     await handler.addAllToMusicQueue([track('x'), track('y')],

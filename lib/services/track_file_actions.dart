@@ -12,6 +12,8 @@ import 'music_playlist_service.dart';
 import 'server_catalog.dart';
 import 'server_upload_service.dart';
 import 'subsonic_client.dart';
+import 'lyrics_service.dart';
+import 'music_player_service.dart';
 
 /// Deleting a song and moving it to another folder, from a song's ⋮ menu.
 ///
@@ -183,7 +185,76 @@ class TrackFileActions {
     final moved = _withPaths(track, filePath: target);
     await MusicLibraryService.instance.replaceTrack(track.id, moved);
     await MusicPlaylistService.instance.renameTrackId(track.id, moved.id);
+    await LyricsService.instance.moveSaved(track.id, moved.id);
+    if (MusicPlayerService.isReady) {
+      MusicPlayerService.handler.replaceTrack(track.id, moved);
+    }
     LogService.add('Music', 'moved ${track.filePath} → $target');
+    return null;
+  }
+
+  /// Whether [track]'s file can be renamed here: phone songs (the music
+  /// server has no rename).
+  static bool canRename(Track track) =>
+      track.source == TrackSource.local && track.filePath != null;
+
+  /// [track]'s file name without folder and extension.
+  static String baseNameOf(Track track) {
+    final name =
+        MusicLibraryService.normalizePath(track.filePath ?? '').split('/').last;
+    final dot = name.lastIndexOf('.');
+    return dot > 0 ? name.substring(0, dot) : name;
+  }
+
+  /// Characters a file name can't have on Android/Windows.
+  static final RegExp _badNameChars = RegExp(r'[\\/:*?"<>|]');
+
+  /// Renames [track]'s file to [newBaseName] (no extension: the old one is
+  /// kept) in the same folder. Its playlists, play counts and saved lyrics
+  /// follow it, and an `.lrc` file next to it is renamed too. Returns null
+  /// when done (or nothing to change), else what went wrong.
+  Future<String?> rename(Track track, String newBaseName) async {
+    if (!canRename(track)) return 'Only songs on this phone can be renamed';
+    final base = newBaseName.trim();
+    if (base.isEmpty) return 'The file name can\'t be empty';
+    if (_badNameChars.hasMatch(base)) {
+      return 'A file name can\'t contain \\ / : * ? " < > |';
+    }
+    if (base == baseNameOf(track)) return null;
+    final path = track.filePath!;
+    final slash = path.lastIndexOf(RegExp(r'[\\/]'));
+    final dir = slash >= 0 ? path.substring(0, slash + 1) : '';
+    final name = path.substring(slash + 1);
+    final dot = name.lastIndexOf('.');
+    final ext = dot > 0 ? name.substring(dot) : '';
+    final target = '$dir$base$ext';
+    try {
+      // Only a change of upper/lower case may "exist" already (the same
+      // file on a case-insensitive storage).
+      if (await File(target).exists() &&
+          target.toLowerCase() != path.toLowerCase()) {
+        return 'There is already a "$base$ext" in that folder';
+      }
+      await File(path).rename(target);
+    } catch (e) {
+      LogService.add('Music', 'rename $path failed: $e');
+      return 'Could not rename the file: $e';
+    }
+    final oldBase = dot > 0 ? '$dir${name.substring(0, dot)}' : '$dir$name';
+    for (final lrcExt in const ['.lrc', '.LRC']) {
+      try {
+        final lrc = File('$oldBase$lrcExt');
+        if (await lrc.exists()) await lrc.rename('$dir$base$lrcExt');
+      } catch (_) {}
+    }
+    final renamed = _withPaths(track, filePath: target);
+    await MusicLibraryService.instance.replaceTrack(track.id, renamed);
+    await MusicPlaylistService.instance.renameTrackId(track.id, renamed.id);
+    await LyricsService.instance.moveSaved(track.id, renamed.id);
+    if (MusicPlayerService.isReady) {
+      MusicPlayerService.handler.replaceTrack(track.id, renamed);
+    }
+    LogService.add('Music', 'renamed $path → $target');
     return null;
   }
 

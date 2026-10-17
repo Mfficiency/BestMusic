@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../models/track.dart';
 import '../services/music_library_service.dart';
 import '../services/music_playlist_service.dart';
+import '../services/track_file_actions.dart';
 import 'subpage_app_bar.dart';
+import 'track_playlists_field.dart';
 
 /// Shows (and lets you fill in) one track's metadata — title/artist/album/
 /// genre/year, the fields rule/smart playlists read, plus read-only file
@@ -31,6 +33,7 @@ class _TrackMetadataPageState extends State<TrackMetadataPage> {
   late final TextEditingController _yearController;
   late final TextEditingController _bpmController;
   late final TextEditingController _tagsController;
+  late final TextEditingController _fileNameController;
 
   @override
   void initState() {
@@ -43,6 +46,8 @@ class _TrackMetadataPageState extends State<TrackMetadataPage> {
     _yearController = TextEditingController(text: track?.year?.toString() ?? '');
     _bpmController = TextEditingController(text: track?.bpm?.toString() ?? '');
     _tagsController = TextEditingController(text: (track?.tags ?? const []).join(', '));
+    _fileNameController = TextEditingController(
+        text: track == null ? '' : TrackFileActions.baseNameOf(track));
   }
 
   @override
@@ -54,6 +59,7 @@ class _TrackMetadataPageState extends State<TrackMetadataPage> {
     _yearController.dispose();
     _bpmController.dispose();
     _tagsController.dispose();
+    _fileNameController.dispose();
     super.dispose();
   }
 
@@ -88,6 +94,16 @@ class _TrackMetadataPageState extends State<TrackMetadataPage> {
       bpm: bpm,
       tags: tags,
     );
+    // Last: renaming the file gives the song a new id.
+    final track = MusicLibraryService.instance.byId(widget.trackId);
+    if (track != null && TrackFileActions.canRename(track)) {
+      final error = await TrackFileActions.instance
+          .rename(track, _fileNameController.text);
+      if (error != null) {
+        messenger.showSnackBar(SnackBar(content: Text(error)));
+        return;
+      }
+    }
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -147,11 +163,27 @@ class _TrackMetadataPageState extends State<TrackMetadataPage> {
                       keyboardType: TextInputType.number,
                     ),
                     const SizedBox(height: 12),
+                    // Changes right away (no Save needed).
+                    TrackPlaylistsField(trackId: track.id),
+                    const SizedBox(height: 12),
                     TextField(
                       controller: _tagsController,
                       decoration: const InputDecoration(
                         labelText: 'Tags',
                         helperText: 'Comma-separated, e.g. Wedding songs, Belgian Top Charts',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      key: const ValueKey('trackFileNameField'),
+                      controller: _fileNameController,
+                      enabled: TrackFileActions.canRename(track),
+                      decoration: InputDecoration(
+                        labelText: 'File name',
+                        suffixText: _extensionOf(track),
+                        helperText: TrackFileActions.canRename(track)
+                            ? 'Renames the file when you save'
+                            : 'Songs on the music server can\'t be renamed here',
                       ),
                     ),
                     if (track.metadataEdited) ...[
@@ -173,6 +205,13 @@ class _TrackMetadataPageState extends State<TrackMetadataPage> {
       },
     );
   }
+}
+
+/// The extension of [track]'s file (".mp3"), shown after the name field.
+String _extensionOf(Track track) {
+  final name = (track.filePath ?? '').split(RegExp(r'[\\/]')).last;
+  final dot = name.lastIndexOf('.');
+  return dot > 0 ? name.substring(dot) : '';
 }
 
 /// One "Label   value" line of song info.
@@ -299,7 +338,13 @@ class TrackInfoView extends StatelessWidget {
             _infoRow('Genre', or(track.genre)),
             _infoRow('Year', track.year?.toString() ?? '—'),
             _infoRow('BPM', track.bpm?.toString() ?? '—'),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: TrackPlaylistsField(trackId: track.id),
+            ),
             if (track.tags.isNotEmpty) _infoRow('Tags', track.tags.join(', ')),
+            if (track.filePath != null)
+              _infoRow('File name', TrackFileActions.baseNameOf(track)),
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(

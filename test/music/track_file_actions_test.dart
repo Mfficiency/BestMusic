@@ -94,6 +94,37 @@ void main() {
       expect(playlists.favorites.trackIds, isNot(contains(track.id)));
     });
 
+    test('rename changes the file name, keeps the extension; '
+        'playlists and the .lrc file follow', () async {
+      final track = await phoneSong('Chill/old name.mp3');
+      await File('${musicDir.path}/Chill/old name.lrc')
+          .writeAsString('[00:01.00]hi');
+      await playlists.toggleFavorite(track.id);
+
+      expect(await actions.rename(track, '  New Name '), isNull);
+      final renamed = File('${musicDir.path}/Chill/New Name.mp3');
+      expect(await renamed.exists(), isTrue);
+      expect(await File(track.filePath!).exists(), isFalse);
+      expect(await File('${musicDir.path}/Chill/New Name.lrc').exists(), isTrue);
+      final now = library.tracks.value.single;
+      expect(norm(now.filePath!), norm(renamed.path));
+      expect(library.byId(track.id), isNull);
+      expect(playlists.isFavorite(now.id), isTrue);
+      expect(TrackFileActions.baseNameOf(now), 'New Name');
+    });
+
+    test('rename refuses empty names, bad characters and taken names',
+        () async {
+      final track = await phoneSong('a.mp3');
+      await phoneSong('b.mp3');
+      expect(await actions.rename(track, '   '), contains("can't be empty"));
+      expect(await actions.rename(track, 'x/y'), contains("can't contain"));
+      expect(await actions.rename(track, 'b'), contains('already'));
+      // Unchanged: nothing to do.
+      expect(await actions.rename(track, 'a'), isNull);
+      expect(await File(track.filePath!).exists(), isTrue);
+    });
+
     test('move refuses to overwrite a file with the same name', () async {
       final track = await phoneSong('Chill/Woof.mp3');
       await File('${musicDir.path}/Woof.mp3').writeAsBytes([9]);
@@ -168,6 +199,17 @@ void main() {
     expect(TrackFileActions.cleanFolder(' /Chill//Deep/ '), 'Chill/Deep');
     expect(TrackFileActions.cleanFolder('../x/./y'), 'x/y');
     expect(TrackFileActions.cleanFolder(r'a\b'), 'a/b');
+  });
+
+  test('only phone songs can be renamed', () {
+    expect(
+        TrackFileActions.canRename(
+            Track.local(filePath: '/m/a.mp3', title: 'a')),
+        isTrue);
+    expect(
+        TrackFileActions.canRename(Track.subsonic(
+            remoteId: 's', title: 'b', artist: '', remotePath: 'b.mp3')),
+        isFalse);
   });
 
   test('YouTube streams cannot be deleted or moved', () {

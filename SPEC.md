@@ -2382,3 +2382,50 @@ sleep timer, shuffle, repeat, queue, add to playlist (songs) and ⓘ.
   this phone", `LyricsLookup.saved`), and "Search again" / "Try again" falling offline or finding
   nothing keeps showing the saved copy rather than throwing it away.
 
+### 10.6ac Charts in the MP3 Downloader (Best Music 0.3.58)
+
+`lib/services/chart_lookup_service.dart` + the MP3 Downloader page. A folded "Top songs from the
+charts" panel (`ExpansionTile`, shown while no results are on screen: idle, error, or during a
+chart lookup) with four dropdowns: Year (this year back to 1960), Top (5/10/20/25/40/50/100,
+default 10), Country (`ChartQuery.countries`, Belgium first, Worldwide last) and Style
+(`ChartQuery.styles`, default Pop, "All styles" for the main chart), then "Find chart songs".
+`ChartLookupService.lookup(ChartQuery)` calls Claude (`claude-opus-5-5`, raw HTTP like
+`VideoSummaryService`, key `Config.claudeApiKey`; without it the page says to set it under
+Settings → Transcripts & summaries) with the `web_search_20260209` server tool and a strict
+`submit_songs` client tool (no forced `tool_choice` — it is a 400 on Opus 5.5 — the system prompt
+asks for it), `output_config.effort: medium`, `fallbacks: "default"` under
+`server-side-fallback-2026-07-01`. `pause_turn` resends the paused assistant turn; a text-only
+answer gets one "please use submit_songs" follow-up; a refusal or API error becomes a readable
+`ChartLookupException`. `ChartQuery.prompt` asks for the year-end chart (the year-to-date ranking
+for the current year), Ultratop (Flanders) for Belgium, global charts for Worldwide, and a genre
+chart or the style's songs from the main chart. The page then runs `Mp3DownloaderService.search
+("Artist - Title", limit: 1)` per song (progress: an `EstimatedProgressBar` with remaining time
+while Claude searches, then "Finding the videos: i of N"), skips songs with no video or a
+duplicate video (listed in a snackbar), and opens the result in the playlist picker
+(`_showTrackPicker`, shared with playlist links: already-saved songs unticked, All/None,
+Download N). Picker rows carry a second line "1 · Artist - Title" for a chart, and every row (charts
+and playlists) has a "Download this one" button that queues just that song and marks it
+Downloading. Tests: `test/tools/chart_lookup_test.dart`.
+
+### 10.6ah Track info: Playlists dropdown and editable file name (Best Music 0.3.59)
+
+- **Playlists** — `TrackPlaylistsField` (`lib/ui/track_playlists_field.dart`), above Tags on
+  `TrackMetadataPage` and in Now Playing's Info tab (`TrackInfoView`): an `InputDecorator` styled
+  like a dropdown ("Playlists", ▾) listing every hand-made/system list playlist the song is in
+  ("Not in any playlist" when none). Tapping it opens a bottom sheet with a checkbox per list
+  playlist (Favorites, Liked songs, "Don't really like", your own; smart playlists fill
+  themselves and aren't listed), "New playlist" (with this song) and Done. Ticks apply right
+  away, keeping the system rules: ticking Favorites also leaves "Don't really like"
+  (`toggleFavorite`), Liked songs uses `markLiked`, "Don't really like" uses `markDisliked`.
+- **File name** — under Tags on `TrackMetadataPage`: a text field with the file name without
+  its extension (shown after it as `suffixText`), key `trackFileNameField`. Save (after the tag
+  fields are saved) calls `TrackFileActions.rename(track, name)`: same folder, same extension;
+  refuses an empty name, `\ / : * ? " < > |` and a name already taken (a change of case only is
+  allowed); renames an `.lrc` file next to it too; the song keeps its playlists
+  (`renameTrackId`), counts and saved lyrics (`LyricsService.moveSaved`), and the player's queue
+  swaps it in (`MusicAudioHandler.replaceTrack`, also used by Move to folder now) so the playing
+  song plays on. An error shows as a snack bar and the page stays open. Music server songs
+  can't be renamed (the field is disabled, saying so). The Info tab shows "File name" under Tags.
+  Tests: `test/music/track_metadata_page_test.dart`, `test/music/track_file_actions_test.dart`,
+  `test/music/music_audio_handler_test.dart` (`replaceTrack`).
+

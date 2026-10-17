@@ -258,6 +258,22 @@ class LyricsService {
     return null;
   }
 
+  /// A song moved or renamed (its id follows its path): its saved lyrics
+  /// go with it.
+  Future<void> moveSaved(String oldId, String newId) async {
+    if (oldId == newId) return;
+    try {
+      final from = await _cacheFile(oldId);
+      if (!await from.exists()) return;
+      final json = jsonDecode(await from.readAsString());
+      if (json is! Map<String, dynamic>) return;
+      json['trackId'] = newId;
+      final to = await _cacheFile(newId);
+      await SafeFile.writeString(to, jsonEncode(json));
+      await from.delete();
+    } catch (_) {}
+  }
+
   Future<void> _writeCache(String trackId, LyricsLookup found) async {
     try {
       final file = await _cacheFile(trackId);

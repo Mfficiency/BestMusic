@@ -1,7 +1,9 @@
 import 'dart:io';
 
+import 'package:best_music/models/music_playlist.dart';
 import 'package:best_music/models/track.dart';
 import 'package:best_music/services/music_library_service.dart';
+import 'package:best_music/services/music_playlist_service.dart';
 import 'package:best_music/ui/track_metadata_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -171,5 +173,67 @@ void main() {
 
     expect(find.text('Year must be a number, e.g. 2021'), findsOneWidget);
     expect(MusicLibraryService.instance.byId(track.id)!.metadataEdited, isFalse);
+  });
+
+  testWidgets('Playlists dropdown above Tags, File name under it',
+      (tester) async {
+    // Tall enough that every field is built (the page is a lazy list).
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final track = Track.local(
+        filePath: '/music/Artist - Song.mp3', title: 'Song', artist: 'Artist');
+    MusicLibraryService.instance.tracks.value = [track];
+    MusicPlaylistService.instance.resetForTest();
+    MusicPlaylistService.instance.playlists.value = [
+      MusicPlaylist.favorites(),
+      MusicPlaylist.disliked(),
+      MusicPlaylist(id: 'p1', name: 'Road trip', trackIds: [track.id]),
+      MusicPlaylist(id: 'p2', name: 'Gym'),
+    ];
+
+    await pushPage(tester, track.id);
+    final playlists = find.byKey(const ValueKey('trackPlaylistsField'));
+    final tags = find.widgetWithText(TextField, 'Tags');
+    final fileName = find.byKey(const ValueKey('trackFileNameField'));
+    expect(find.descendant(of: playlists, matching: find.text('Road trip')),
+        findsOneWidget);
+    expect(tester.getTopLeft(playlists).dy,
+        lessThan(tester.getTopLeft(tags).dy));
+    expect(tester.getTopLeft(fileName).dy,
+        greaterThan(tester.getTopLeft(tags).dy));
+    // The name without its extension, which is shown after it.
+    expect(tester.widget<TextField>(fileName).controller!.text, 'Artist - Song');
+    expect(find.text('.mp3'), findsOneWidget);
+
+    // Tick Gym, untick Road trip: applied right away.
+    await tester.ensureVisible(playlists);
+    await tester.tap(playlists);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(CheckboxListTile, 'Gym'));
+    await tester.tap(find.widgetWithText(CheckboxListTile, 'Road trip'));
+    await drainIo(tester);
+    expect(MusicPlaylistService.instance.byId('p2')!.trackIds, [track.id]);
+    expect(MusicPlaylistService.instance.byId('p1')!.trackIds, isEmpty);
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+    expect(find.descendant(of: playlists, matching: find.text('Gym')),
+        findsOneWidget);
+  });
+
+  testWidgets('a server song\'s file name can\'t be edited', (tester) async {
+    // Tall enough that every field is built (the page is a lazy list).
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final track = Track.subsonic(
+        remoteId: 's1', title: 'Remote', artist: 'A', remotePath: 'x/Remote.mp3');
+    MusicLibraryService.instance.tracks.value = [track];
+
+    await pushPage(tester, track.id);
+    final field = tester.widget<TextField>(
+        find.byKey(const ValueKey('trackFileNameField')));
+    expect(field.enabled, isFalse);
+    expect(find.textContaining("can't be renamed here"), findsOneWidget);
   });
 }

@@ -520,6 +520,35 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
     _persist();
   }
 
+  /// A song's file was renamed or moved (its id follows its path): swaps
+  /// [updated] in for [oldId] in the queue and the remembered other
+  /// session, so it plays from its new place. The playing song keeps
+  /// playing (the open file follows a rename).
+  void replaceTrack(String oldId, Track updated) {
+    Track swap(Track t) => t.id == oldId ? updated : t;
+    final wasCurrent = currentTrack?.id == oldId;
+    if (_queue.any((t) => t.id == oldId)) {
+      _queue = _queue.map(swap).toList();
+      _preShuffleOrder = _preShuffleOrder?.map(swap).toList();
+      queue.add(_queue.map(_toMediaItem).toList());
+    }
+    if (_loadedTrackId == oldId) _loadedTrackId = updated.id;
+    final other = otherSession.value;
+    if (other != null && other.queue.any((t) => t.id == oldId)) {
+      otherSession.value = PlaybackSession(
+        queue: other.queue.map(swap).toList(),
+        index: other.index,
+        position: other.position,
+      );
+    }
+    if (wasCurrent) {
+      final item = mediaItem.valueOrNull;
+      mediaItem.add(_toMediaItem(updated).copyWith(duration: item?.duration));
+      NowPlaying.trackId.value = updated.id;
+    }
+    _persist();
+  }
+
   /// [addToMusicQueue] for several songs at once (selected in a list),
   /// keeping their order: with [playNext] they come right after the
   /// playing song in this order, otherwise at the end. With nothing loaded

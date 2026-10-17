@@ -8,6 +8,7 @@ import 'package:best_music/services/music_player_service.dart';
 import 'package:best_music/services/music_playlist_service.dart';
 import 'package:best_music/ui/lyrics_view.dart';
 import 'package:best_music/ui/now_playing_page.dart';
+import 'package:best_music/ui/track_metadata_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -93,6 +94,13 @@ void main() {
     await tester.tap(find.text('Info'));
     await tester.pumpAndSettle();
     expect(find.text('Singer'), findsWidgets);
+    expect(find.text('Playlists'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Edit info'), 100,
+        scrollable: find
+            .descendant(
+                of: find.byType(TrackInfoView),
+                matching: find.byType(Scrollable))
+            .first);
     expect(find.text('Edit info'), findsOneWidget);
 
     // ⓘ again: back to the big view; the tab is remembered.

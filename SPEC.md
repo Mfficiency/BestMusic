@@ -2407,3 +2407,25 @@ Download N). Picker rows carry a second line "1 · Artist - Title" for a chart, 
 and playlists) has a "Download this one" button that queues just that song and marks it
 Downloading. Tests: `test/tools/chart_lookup_test.dart`.
 
+### 10.6ah Track info: Playlists dropdown and editable file name (Best Music 0.3.59)
+
+- **Playlists** — `TrackPlaylistsField` (`lib/ui/track_playlists_field.dart`), above Tags on
+  `TrackMetadataPage` and in Now Playing's Info tab (`TrackInfoView`): an `InputDecorator` styled
+  like a dropdown ("Playlists", ▾) listing every hand-made/system list playlist the song is in
+  ("Not in any playlist" when none). Tapping it opens a bottom sheet with a checkbox per list
+  playlist (Favorites, Liked songs, "Don't really like", your own; smart playlists fill
+  themselves and aren't listed), "New playlist" (with this song) and Done. Ticks apply right
+  away, keeping the system rules: ticking Favorites also leaves "Don't really like"
+  (`toggleFavorite`), Liked songs uses `markLiked`, "Don't really like" uses `markDisliked`.
+- **File name** — under Tags on `TrackMetadataPage`: a text field with the file name without
+  its extension (shown after it as `suffixText`), key `trackFileNameField`. Save (after the tag
+  fields are saved) calls `TrackFileActions.rename(track, name)`: same folder, same extension;
+  refuses an empty name, `\ / : * ? " < > |` and a name already taken (a change of case only is
+  allowed); renames an `.lrc` file next to it too; the song keeps its playlists
+  (`renameTrackId`), counts and saved lyrics (`LyricsService.moveSaved`), and the player's queue
+  swaps it in (`MusicAudioHandler.replaceTrack`, also used by Move to folder now) so the playing
+  song plays on. An error shows as a snack bar and the page stays open. Music server songs
+  can't be renamed (the field is disabled, saying so). The Info tab shows "File name" under Tags.
+  Tests: `test/music/track_metadata_page_test.dart`, `test/music/track_file_actions_test.dart`,
+  `test/music/music_audio_handler_test.dart` (`replaceTrack`).
+

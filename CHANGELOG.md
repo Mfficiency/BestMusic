@@ -5,6 +5,10 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.58] - 2026-10-17
+- MP3 Downloader: new "Top songs from the charts". Pick a year, a country, a style (Pop unless you change it) and how many (top 5 to top 100); Best Music looks the chart up on the web, finds each song on YouTube and lists them. Download them all at once, only the ones you tick, or one by one with the download button on each song. Songs you already have start unticked.
+- It uses the Claude API key you set for video summaries (Settings → Transcripts & summaries).
+
 ## [0.3.57] - 2026-10-16
 - Now Playing: the volume button is gone (use the phone's volume keys; the music and video volumes are still in Settings).
 - Lyrics: no more tapping "Try again" several times. The app now retries by itself, and if it still can't get them it tells you the actual reason (for example "No internet: lrclib.net could not be found" or "LRCLIB server error 503").

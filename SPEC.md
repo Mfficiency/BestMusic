@@ -2382,3 +2382,28 @@ sleep timer, shuffle, repeat, queue, add to playlist (songs) and ⓘ.
   this phone", `LyricsLookup.saved`), and "Search again" / "Try again" falling offline or finding
   nothing keeps showing the saved copy rather than throwing it away.
 
+### 10.6ac Charts in the MP3 Downloader (Best Music 0.3.58)
+
+`lib/services/chart_lookup_service.dart` + the MP3 Downloader page. A folded "Top songs from the
+charts" panel (`ExpansionTile`, shown while no results are on screen: idle, error, or during a
+chart lookup) with four dropdowns: Year (this year back to 1960), Top (5/10/20/25/40/50/100,
+default 10), Country (`ChartQuery.countries`, Belgium first, Worldwide last) and Style
+(`ChartQuery.styles`, default Pop, "All styles" for the main chart), then "Find chart songs".
+`ChartLookupService.lookup(ChartQuery)` calls Claude (`claude-opus-5-5`, raw HTTP like
+`VideoSummaryService`, key `Config.claudeApiKey`; without it the page says to set it under
+Settings → Transcripts & summaries) with the `web_search_20260209` server tool and a strict
+`submit_songs` client tool (no forced `tool_choice` — it is a 400 on Opus 5.5 — the system prompt
+asks for it), `output_config.effort: medium`, `fallbacks: "default"` under
+`server-side-fallback-2026-07-01`. `pause_turn` resends the paused assistant turn; a text-only
+answer gets one "please use submit_songs" follow-up; a refusal or API error becomes a readable
+`ChartLookupException`. `ChartQuery.prompt` asks for the year-end chart (the year-to-date ranking
+for the current year), Ultratop (Flanders) for Belgium, global charts for Worldwide, and a genre
+chart or the style's songs from the main chart. The page then runs `Mp3DownloaderService.search
+("Artist - Title", limit: 1)` per song (progress: an `EstimatedProgressBar` with remaining time
+while Claude searches, then "Finding the videos: i of N"), skips songs with no video or a
+duplicate video (listed in a snackbar), and opens the result in the playlist picker
+(`_showTrackPicker`, shared with playlist links: already-saved songs unticked, All/None,
+Download N). Picker rows carry a second line "1 · Artist - Title" for a chart, and every row (charts
+and playlists) has a "Download this one" button that queues just that song and marks it
+Downloading. Tests: `test/tools/chart_lookup_test.dart`.
+

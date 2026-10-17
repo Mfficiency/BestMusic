@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../config.dart';
+import '../services/chart_lookup_service.dart';
 import '../services/log_service.dart';
 import '../services/mp3_download_manager.dart';
 import '../services/mp3_downloader_service.dart';
@@ -52,17 +53,20 @@ class Mp3DownloaderPage extends StatefulWidget {
     Mp3DownloaderService? service,
     Mp3DownloadManager? manager,
     MusicLinkResolverService? resolver,
+    ChartLookupService? chartService,
     this.sharedLink,
     this.autoDownloadTopMatch = false,
     this.initialQuery,
   })  : _service = service,
         _manager = manager,
         _resolver = resolver,
+        _chartService = chartService,
         super(key: key);
 
   final Mp3DownloaderService? _service;
   final Mp3DownloadManager? _manager;
   final MusicLinkResolverService? _resolver;
+  final ChartLookupService? _chartService;
 
   /// Set when this page was opened from the Android share sheet (a Spotify,
   /// YouTube or Shazam link shared into BestToDo — see `main.dart`) rather
@@ -100,6 +104,30 @@ class _Mp3DownloaderPageState extends State<Mp3DownloaderPage> {
       widget._manager ?? Mp3DownloadManager.instance;
   late final MusicLinkResolverService _resolver =
       widget._resolver ?? MusicLinkResolverService.instance;
+  late final ChartLookupService _charts =
+      widget._chartService ?? ChartLookupService.instance;
+
+  // "Top songs from the charts": what to look up.
+  int _chartYear = DateTime.now().year;
+  String _chartCountry = ChartQuery.countries.first;
+  String _chartStyle = ChartQuery.defaultStyle;
+  int _chartCount = 10;
+
+  /// While a chart is looked up: what's happening, how far ([_chartProgress]
+  /// null while Claude searches) and since when.
+  String? _chartStatus;
+  double? _chartProgress;
+  DateTime? _chartStarted;
+
+  /// Picker rows' extra line for a chart: "1 · Artist - Title".
+  Map<String, String> _trackLabels = <String, String>{};
+
+  /// Picker rows downloaded one by one with their own button.
+  Set<String> _queuedVideoIds = <String>{};
+
+  /// Folds the charts panel away once a lookup starts, so its progress and
+  /// result get the room.
+  final ExpansionTileController _chartPanel = ExpansionTileController();
   final TextEditingController _controller = TextEditingController();
 
   _Stage _stage = _Stage.idle;
@@ -390,6 +418,13 @@ class _Mp3DownloaderPageState extends State<Mp3DownloaderPage> {
       setState(() => _stage = _Stage.idle);
       return;
     }
+    await _showTrackPicker(info, folder);
+  }
+
+  /// The checkbox list for [info] (a playlist or a chart), with what's
+  /// already saved unticked.
+  Future<void> _showTrackPicker(Mp3PlaylistInfo info, String folder,
+      {Map<String, String> labels = const {}}) async {
     final compareFolders = await compareFoldersFor(
       folder,
       configuredCompareFolder: Config.mp3CompareFolder,
@@ -414,6 +449,118 @@ class _Mp3DownloaderPageState extends State<Mp3DownloaderPage> {
       _playlistFolder = folder;
       _alreadyDownloadedVideoIds = alreadyDownloaded;
       _selectedVideoIds = toSelect;
+      _trackLabels = labels;
+      _queuedVideoIds = <String>{};
+      _chartStatus = null;
+      _chartProgress = null;
+      _chartStarted = null;
+    });
+  }
+
+  /// "Top songs from the charts": Claude looks the chart up on the web,
+  /// then every song's YouTube video is searched for, and the result opens
+  /// in the same checkbox list as a playlist (download all, some, or one).
+  Future<void> _findChart() async {
+    FocusScope.of(context).unfocus();
+    if (_chartPanel.isExpanded) _chartPanel.collapse();
+    if (!_charts.hasApiKey) {
+      setState(() {
+        _stage = _Stage.error;
+        _errorMessage = 'Charts need a Claude API key: Settings → '
+            'Transcripts & summaries → Claude API key.';
+      });
+      return;
+    }
+    final folder = await _ensureDownloadFolder();
+    if (!mounted || folder == null) return;
+    final query = ChartQuery(
+      year: _chartYear,
+      country: _chartCountry,
+      style: _chartStyle,
+      count: _chartCount,
+    );
+    setState(() {
+      _stage = _Stage.searching;
+      _errorMessage = null;
+      _chartStatus = 'Looking up ${query.title}…';
+      _chartProgress = null;
+      _chartStarted = DateTime.now();
+    });
+    try {
+      final chart = await _charts.lookup(query);
+      if (!mounted) return;
+      if (chart.songs.isEmpty) {
+        setState(() {
+          _stage = _Stage.error;
+          _errorMessage = 'No songs found for ${query.title}';
+        });
+        return;
+      }
+      final tracks = <Mp3SearchResult>[];
+      final labels = <String, String>{};
+      final missing = <ChartSong>[];
+      for (var i = 0; i < chart.songs.length; i++) {
+        final song = chart.songs[i];
+        setState(() {
+          _chartStatus =
+              'Finding the videos: ${i + 1} of ${chart.songs.length}';
+          _chartProgress = i / chart.songs.length;
+        });
+        List<Mp3SearchResult> found;
+        try {
+          found = await _service.search(song.searchQuery, limit: 1);
+        } catch (_) {
+          found = const [];
+        }
+        if (!mounted) return;
+        if (found.isEmpty ||
+            tracks.any((t) => t.videoId == found.first.videoId)) {
+          missing.add(song);
+          continue;
+        }
+        tracks.add(found.first);
+        labels[found.first.videoId] = '${i + 1} · ${song.searchQuery}';
+      }
+      if (tracks.isEmpty) {
+        setState(() {
+          _stage = _Stage.error;
+          _errorMessage = 'No YouTube videos found for ${query.title}';
+        });
+        return;
+      }
+      await _showTrackPicker(
+          Mp3PlaylistInfo(title: query.title, tracks: tracks), folder,
+          labels: labels);
+      if (!mounted) return;
+      if (missing.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('No video found for: '
+              '${missing.map((s) => s.searchQuery).join(', ')}'),
+        ));
+      }
+    } on ChartLookupException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _stage = _Stage.error;
+        _errorMessage = e.message;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _stage = _Stage.error;
+        _errorMessage = 'Chart lookup failed: $e';
+      });
+    }
+  }
+
+  /// A picker row's own download button: just this one, now.
+  void _queueOne(Mp3SearchResult track) {
+    final folder = _playlistFolder;
+    if (folder == null) return;
+    _manager.enqueue(track, folder);
+    setState(() {
+      _queuedVideoIds = {..._queuedVideoIds, track.videoId};
+      _selectedVideoIds.remove(track.videoId);
     });
   }
 
@@ -487,6 +634,11 @@ class _Mp3DownloaderPageState extends State<Mp3DownloaderPage> {
       _selectedVideoIds = <String>{};
       _alreadyDownloadedVideoIds = <String>{};
       _autoJob = null;
+      _trackLabels = <String, String>{};
+      _queuedVideoIds = <String>{};
+      _chartStatus = null;
+      _chartProgress = null;
+      _chartStarted = null;
     });
   }
 
@@ -551,6 +703,11 @@ class _Mp3DownloaderPageState extends State<Mp3DownloaderPage> {
               onPressed: _stage == _Stage.searching ? null : _submit,
               child: const Text('Find & download'),
             ),
+            // Out of the way while results (candidates, a list) are shown.
+            if (_stage == _Stage.idle ||
+                _stage == _Stage.error ||
+                (_stage == _Stage.searching && _chartStatus != null))
+              _buildChartPanel(context),
             const SizedBox(height: 12),
             _buildQueueStatus(context),
             Expanded(child: _buildBody(context)),
@@ -738,8 +895,15 @@ class _Mp3DownloaderPageState extends State<Mp3DownloaderPage> {
               final track = tracks[index];
               final alreadyDownloaded =
                   _alreadyDownloadedVideoIds.contains(track.videoId);
+              final queued = _queuedVideoIds.contains(track.videoId);
               final plays = formatViewCount(track.viewCount);
+              final label = _trackLabels[track.videoId];
               return CheckboxListTile(
+                secondary: IconButton(
+                  icon: Icon(queued ? Icons.downloading : Icons.download),
+                  tooltip: queued ? 'Downloading' : 'Download this one',
+                  onPressed: queued ? null : () => _queueOne(track),
+                ),
                 controlAffinity: ListTileControlAffinity.leading,
                 value: _selectedVideoIds.contains(track.videoId),
                 onChanged: (checked) => setState(() {
@@ -752,10 +916,16 @@ class _Mp3DownloaderPageState extends State<Mp3DownloaderPage> {
                 title: Text(track.title,
                     maxLines: 2, overflow: TextOverflow.ellipsis),
                 subtitle: Text(
-                  alreadyDownloaded
-                      ? 'Already downloaded'
-                      : '${track.channel} · ${_formatDuration(track.duration)}'
+                  [
+                    if (label != null) label,
+                    if (queued)
+                      'Downloading'
+                    else if (alreadyDownloaded)
+                      'Already downloaded'
+                    else
+                      '${track.channel} · ${_formatDuration(track.duration)}'
                           '${plays.isEmpty ? '' : ' · $plays plays'}',
+                  ].join('\n'),
                   style: alreadyDownloaded
                       ? theme.textTheme.bodySmall
                           ?.copyWith(fontStyle: FontStyle.italic)
@@ -791,6 +961,82 @@ class _Mp3DownloaderPageState extends State<Mp3DownloaderPage> {
     );
   }
 
+  /// "Top songs from the charts": year, country, style (Pop by default)
+  /// and how many, then [_findChart]. Folded away until opened.
+  Widget _buildChartPanel(BuildContext context) {
+    final busy = _stage == _Stage.searching;
+    final thisYear = DateTime.now().year;
+    Widget dropdown<T>(String label, T value, List<T> options,
+            String Function(T) text, void Function(T) pick) =>
+        DropdownButtonFormField<T>(
+          key: ValueKey('chart$label'),
+          // `value` (not `initialValue`): the Flutter CI builds with knows
+          // only `value`.
+          value: value,
+          isExpanded: true,
+          decoration: InputDecoration(
+            labelText: label,
+            isDense: true,
+            border: const OutlineInputBorder(),
+          ),
+          items: [
+            for (final o in options)
+              DropdownMenuItem<T>(value: o, child: Text(text(o))),
+          ],
+          onChanged: busy ? null : (v) => setState(() => pick(v as T)),
+        );
+    return ExpansionTile(
+      key: const ValueKey('chartPanel'),
+      controller: _chartPanel,
+      tilePadding: EdgeInsets.zero,
+      childrenPadding: const EdgeInsets.only(bottom: 8),
+      leading: const Icon(Icons.leaderboard_outlined),
+      title: const Text('Top songs from the charts'),
+      subtitle: Text(
+          'Top $_chartCount ${_chartStyle == ChartQuery.allStyles ? '' : '$_chartStyle '}'
+          '· $_chartCountry · $_chartYear'),
+      children: [
+        Row(children: [
+          Expanded(
+            child: dropdown<int>('Year', _chartYear,
+                [for (var y = thisYear; y >= 1960; y--) y], (y) => '$y',
+                (y) => _chartYear = y),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: dropdown<int>('Top', _chartCount, ChartQuery.counts,
+                (n) => '$n songs', (n) => _chartCount = n),
+          ),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(
+            child: dropdown<String>('Country', _chartCountry,
+                ChartQuery.countries, (c) => c, (c) => _chartCountry = c),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: dropdown<String>('Style', _chartStyle, ChartQuery.styles,
+                (s) => s, (s) => _chartStyle = s),
+          ),
+        ]),
+        const SizedBox(height: 8),
+        FilledButton.tonalIcon(
+          onPressed: busy ? null : _findChart,
+          icon: const Icon(Icons.search),
+          label: const Text('Find chart songs'),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Claude looks the chart up on the web (needs the Claude API key in '
+          'Settings), then each song is found on YouTube. You pick what to '
+          'download.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+
   /// Download button with a badge counting whatever is still in flight, so
   /// the queue is visible from here without opening it.
   Widget _buildDownloadsButton() {
@@ -814,9 +1060,29 @@ class _Mp3DownloaderPageState extends State<Mp3DownloaderPage> {
       case _Stage.idle:
         return const SizedBox.shrink();
       case _Stage.searching:
-        return const Align(
-          alignment: Alignment.topCenter,
-          child: EstimatedProgressBar(active: true),
+        final status = _chartStatus;
+        if (status == null) {
+          return const Align(
+            alignment: Alignment.topCenter,
+            child: EstimatedProgressBar(active: true),
+          );
+        }
+        // A chart lookup: Claude searching the web takes a minute or so,
+        // then one YouTube search per song.
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            EstimatedProgressBar(
+              active: true,
+              value: _chartProgress,
+              expected: const Duration(seconds: 60),
+              showRemaining: true,
+              startedAt: _chartStarted,
+            ),
+            const SizedBox(height: 8),
+            Text(status, key: const ValueKey('chartStatus')),
+          ],
         );
       case _Stage.picking:
         final autoVideoId = _autoJob?.videoId;
@@ -858,17 +1124,21 @@ class _Mp3DownloaderPageState extends State<Mp3DownloaderPage> {
       case _Stage.playlist:
         return _buildPlaylistPicker(context);
       case _Stage.error:
+        // Scrolls when there's little room (the charts panel open above).
         return Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, color: Colors.red, size: 48),
-              const SizedBox(height: 12),
-              Text(_errorMessage ?? 'Something went wrong',
-                  textAlign: TextAlign.center),
-              const SizedBox(height: 12),
-              OutlinedButton(onPressed: _reset, child: const Text('Try again')),
-            ],
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                const SizedBox(height: 12),
+                Text(_errorMessage ?? 'Something went wrong',
+                    textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                OutlinedButton(
+                    onPressed: _reset, child: const Text('Try again')),
+              ],
+            ),
           ),
         );
     }

@@ -50,3 +50,4 @@ flutter:
   assets:
     - CHANGELOG.md
     - assets/branding/
+    - assets/charts/

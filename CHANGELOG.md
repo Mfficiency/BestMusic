@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.60] - 2026-10-17
+- Top songs from the charts now works without an API key. The biggest hits of every year from 2000 to 2025 are built in for Belgium, the UK, the US, France, Germany, Spain and Switzerland (up to 25 a year, each with its style, so "Pop" and the other styles work too). For this year, the country's current chart comes from Deezer. A Claude API key still gives the exact official chart for any country, year and style.
+
 ## [0.3.59] - 2026-10-17
 - Track info: a Playlists dropdown above Tags shows every playlist the song is in; tap it to tick or untick playlists (or make a new one). It's on Now Playing's Info tab too.
 - Track info: under Tags you can now edit the file name (without the extension). Saving renames the file; the song keeps its playlists, play counts and lyrics, and keeps playing if it's the one playing. Songs on the music server can't be renamed here.

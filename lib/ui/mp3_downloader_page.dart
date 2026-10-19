@@ -457,20 +457,14 @@ class _Mp3DownloaderPageState extends State<Mp3DownloaderPage> {
     });
   }
 
-  /// "Top songs from the charts": Claude looks the chart up on the web,
-  /// then every song's YouTube video is searched for, and the result opens
-  /// in the same checkbox list as a playlist (download all, some, or one).
+  /// "Top songs from the charts": the chart comes from Claude (with an API
+  /// key), the lists built into the app, or Deezer's chart for this year
+  /// ([ChartLookupService.lookup]); then every song's YouTube video is
+  /// searched for, and the result opens in the same checkbox list as a
+  /// playlist (download all, some, or one).
   Future<void> _findChart() async {
     FocusScope.of(context).unfocus();
     if (_chartPanel.isExpanded) _chartPanel.collapse();
-    if (!_charts.hasApiKey) {
-      setState(() {
-        _stage = _Stage.error;
-        _errorMessage = 'Charts need a Claude API key: Settings → '
-            'Transcripts & summaries → Claude API key.';
-      });
-      return;
-    }
     final folder = await _ensureDownloadFolder();
     if (!mounted || folder == null) return;
     final query = ChartQuery(
@@ -532,10 +526,16 @@ class _Mp3DownloaderPageState extends State<Mp3DownloaderPage> {
           Mp3PlaylistInfo(title: query.title, tracks: tracks), folder,
           labels: labels);
       if (!mounted) return;
-      if (missing.isNotEmpty) {
+      final notes = [
+        if (chart.summary.isNotEmpty) chart.summary,
+        if (missing.isNotEmpty)
+          'No video found for: '
+              '${missing.map((s) => s.searchQuery).join(', ')}',
+      ];
+      if (notes.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('No video found for: '
-              '${missing.map((s) => s.searchQuery).join(', ')}'),
+          content: Text(notes.join('\n')),
+          duration: const Duration(seconds: 6),
         ));
       }
     } on ChartLookupException catch (e) {
@@ -1028,9 +1028,11 @@ class _Mp3DownloaderPageState extends State<Mp3DownloaderPage> {
         ),
         const SizedBox(height: 4),
         Text(
-          'Claude looks the chart up on the web (needs the Claude API key in '
-          'Settings), then each song is found on YouTube. You pick what to '
-          'download.',
+          'Built in for Belgium, UK, US, France, Germany, Spain and '
+          "Switzerland (2000–2025); this year's chart comes from Deezer. "
+          'With a Claude API key (Settings) any country, year and style is '
+          'looked up on the web. Each song is then found on YouTube and you '
+          'pick what to download.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],

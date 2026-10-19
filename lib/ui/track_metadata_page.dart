@@ -6,6 +6,8 @@ import '../services/music_playlist_service.dart';
 import '../services/track_file_actions.dart';
 import 'subpage_app_bar.dart';
 import 'track_playlists_field.dart';
+import 'trim_song_page.dart';
+import '../services/track_trimmer.dart';
 
 /// Shows (and lets you fill in) one track's metadata — title/artist/album/
 /// genre/year, the fields rule/smart playlists read, plus read-only file
@@ -118,6 +120,14 @@ class _TrackMetadataPageState extends State<TrackMetadataPage> {
             context,
             title: 'Track info',
             actions: [
+              if (track != null && TrackTrimmer.canTrim(track))
+                IconButton(
+                  icon: const Icon(Icons.content_cut),
+                  tooltip: 'Shorten song',
+                  onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                          builder: (_) => TrimSongPage(trackId: track.id))),
+                ),
               IconButton(
                 icon: const Icon(Icons.check),
                 tooltip: 'Save',

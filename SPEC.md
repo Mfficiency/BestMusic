@@ -2429,3 +2429,60 @@ Downloading. Tests: `test/tools/chart_lookup_test.dart`.
   Tests: `test/music/track_metadata_page_test.dart`, `test/music/track_file_actions_test.dart`,
   `test/music/music_audio_handler_test.dart` (`replaceTrack`).
 
+### 10.6ad Charts without an API key (Best Music 0.3.60)
+
+`lib/services/builtin_charts.dart`. `ChartLookupService.lookup` now: with `Config.claudeApiKey`
+→ Claude as in §10.6ac; without it → `BuiltInCharts.lookup` (asset
+`assets/charts/year_end_charts.json`: `{"<country>": {"<year>": [["Artist", "Title", "Style"],
+...]}}` for Belgium, United Kingdom, United States, France, Germany, Spain and Switzerland,
+2000–2025, 15–25 songs a year in chart order where known, each tagged with one of
+`ChartQuery.styles`; the query's style filters, its count cuts; result `source: builtIn`, summary
+"Built-in list: the biggest Pop hits of 2005 in Belgium (N in the built-in top M)"); else, for the
+current year, `DeezerCharts.currentChart` (Deezer's free API: the "Top <country>" playlist by the
+"Deezer Charts" account, found through `search/playlist` with per-country aliases, then
+`playlist/<id>/tracks?limit=N`; no style filter, the summary says so); else a
+`ChartLookupException` naming what's covered and pointing to the key. `ChartSong.style` carries the
+tag; `ChartQuery.countries` lists the built-in countries first (Switzerland added). The page no
+longer requires the key and shows the result's summary (source) in the snackbar with any songs
+that had no video.
+
+The built-in lists were compiled on 2026-10-17 from year-end charts (Ultratop Flanders, Official
+Charts Company, Billboard Year-End Hot 100, SNEP, Offizielle Deutsche Charts, PROMUSICAE, Schweizer
+Hitparade) as far as web search summaries showed them, completed from knowledge: the top of each
+year is mostly in official order, lower places are ordered by how big the hit was. Test
+(`test/tools/chart_lookup_test.dart`) checks the asset's shape: every country and year, ≥ 15
+songs, known styles.
+
+### 10.6ae Shorten song (Best Music 0.3.61)
+
+`lib/services/audio_trimmer.dart` (`AudioTrimmer`, pure Dart, run in an `Isolate`): cuts a file
+without re-encoding. **MP3**: frames are parsed (MPEG 1/2/2.5, layers I-III, a frame counts as
+real only when another follows), whole frames inside the range are kept (a frame is in when at
+least half of it is), the ID3v2 tag at the front and ID3v1 at the end are copied, and a
+Xing/Info first frame is rewritten (frame count, byte count, a fresh 100-entry seek table; the
+LAME/Lavc tag after it, whose encoder delay/padding/CRC no longer fit, is blanked; VBRI is left).
+**M4A/MP4 (AAC)**: one non-fragmented audio track only (`moof` or several `trak`s are refused);
+per-sample durations/sizes/offsets come from `stts`/`stsz`/`stsc`/`stco`|`co64`; the kept samples
+(half-inside rule) go into a new `mdat` after a rebuilt `moov` (`stbl` = original `stsd` + new
+`stts`, a one-chunk `stsc`, `stsz`, `stco`; `edts` and sample groups dropped; `mdhd`/`mvhd`/`tkhd`
+durations updated; `udta` tags copied; `ftyp` kept). **WAV**: `fmt ` + the data cut on block
+boundaries. Other formats throw `AudioTrimException` ("Shortening .webm files isn't supported
+yet").
+
+`lib/services/track_trimmer.dart` (`TrackTrimmer`): phone songs only (`canTrim`: local file with a
+supported extension). In place: the short version is written next to the file
+(`<name>.trimming.<ext>`), the original moves to `<documents>/trim_backups/<ms>_<name>` (backups
+older than 7 days are purged on the next trim), the short one takes the original name; the
+library entry keeps its id and counters and gets the new `durationMs`; the media scanner is told.
+Keep original: `<name> (short).<ext>` (or `(short 2)`…) becomes a new library song titled
+"<title> (short)" with fresh counters. `undo` moves the original back (or deletes the copy) and
+restores the library entry.
+
+`lib/ui/trim_song_page.dart` (`TrimSongPage`), from a song's ⋮ menu ("Shorten song") and the
+Track info app bar (scissors, tooltip "Shorten song"): the exact length read from the file, a
+`RangeSlider` (min 1 s kept), ±1 s buttons per edge, previews of the first/last 5 s through a
+page-local `just_audio` player (`ClippingAudioSource`), "Save as a new song" switch, Shorten →
+snackbar "Shortened to m:ss.t" with Undo. Tests: `test/music/audio_trimmer_test.dart` with
+ffmpeg-made fixtures in `test/fixtures/audio/` (CBR and VBR MP3, AAC M4A, WAV); the trimmed
+outputs were checked with ffprobe/ffmpeg (length, tags, error-free decode) when written.
+

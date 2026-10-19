@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:best_music/config.dart';
+import 'package:best_music/services/builtin_charts.dart';
 import 'package:best_music/services/chart_lookup_service.dart';
 import 'package:best_music/services/mp3_download_manager.dart';
 import 'package:best_music/services/mp3_downloader_service.dart';
@@ -43,7 +44,44 @@ void main() {
   tearDown(() {
     service.client = null;
     Config.claudeApiKey = '';
+    BuiltInCharts.instance.resetForTest();
+    DeezerCharts.instance.client = null;
   });
+
+  // A small stand-in for the built-in asset.
+  void fakeBuiltIn() {
+    BuiltInCharts.instance.loadOverride = () async => jsonEncode({
+          'Belgium': {
+            '2005': [
+              ['Crazy Frog', 'Axel F', 'Dance / Electronic'],
+              ['James Blunt', "You're Beautiful", 'Pop'],
+              ['Gorillaz', 'Feel Good Inc.', 'Rock'],
+              ['Mariah Carey', 'We Belong Together', 'R&B / Soul'],
+              ['Shakira', 'La Tortura', 'Latin'],
+              ['Kelly Clarkson', 'Since U Been Gone', 'Pop'],
+            ],
+          },
+        });
+  }
+
+  MockClient fakeDeezer(List<String> requested) => MockClient((request) async {
+        requested.add(request.url.toString());
+        if (request.url.path.endsWith('/search/playlist')) {
+          return reply({
+            'data': [
+              {'id': 1, 'title': 'Top Belgium', 'user': {'name': 'Someone'}},
+              {'id': 99, 'title': 'Top Belgium', 'user': {'name': 'Deezer Charts'}},
+            ],
+          });
+        }
+        return reply({
+          'data': [
+            {'title_short': 'Hit One', 'title': 'Hit One (Radio Edit)',
+              'artist': {'name': 'Band A'}},
+            {'title_short': 'Hit Two', 'artist': {'name': 'Band B'}},
+          ],
+        });
+      });
 
   group('ChartQuery', () {
     test('title and prompt follow the picks; Pop is the default style', () {
@@ -66,13 +104,66 @@ void main() {
   });
 
   group('ChartLookupService', () {
-    test('without a Claude API key it says where to set one', () async {
-      Config.claudeApiKey = '';
-      expect(
-          () => service.lookup(
-              const ChartQuery(year: 2024, country: 'Belgium')),
-          throwsA(isA<ChartLookupException>().having(
-              (e) => e.message, 'message', contains('Claude API key'))));
+    test('without a key: the built-in list, filtered to the style and cut '
+        'to the count', () async {
+      fakeBuiltIn();
+      final pop = await service.lookup(
+          const ChartQuery(year: 2005, country: 'Belgium', count: 10));
+      expect(pop.source, ChartSource.builtIn);
+      expect(pop.songs.map((s) => s.title),
+          ["You're Beautiful", 'Since U Been Gone']);
+      expect(pop.summary, contains('2 in the built-in top 6'));
+
+      final all = await service.lookup(const ChartQuery(
+          year: 2005, country: 'Belgium', style: ChartQuery.allStyles, count: 3));
+      expect(all.songs.map((s) => s.artist),
+          ['Crazy Frog', 'James Blunt', 'Gorillaz']);
+      expect(all.songs.first.style, 'Dance / Electronic');
+    });
+
+    test("without a key, this year's chart comes from Deezer", () async {
+      final requested = <String>[];
+      DeezerCharts.instance.client = fakeDeezer(requested);
+      final result = await service.lookup(
+          const ChartQuery(year: 2026, country: 'Belgium', count: 2),
+          now: DateTime(2026, 10, 17));
+      expect(result.source, ChartSource.deezer);
+      expect(result.songs.map((s) => s.searchQuery),
+          ['Band A - Hit One', 'Band B - Hit Two']);
+      expect(requested.last, contains('/playlist/99/tracks?limit=2'));
+      expect(result.summary, contains('Deezer charts have no style'));
+    });
+
+    test('without a key, an uncovered past year says what is covered',
+        () async {
+      fakeBuiltIn();
+      await expectLater(
+          service.lookup(const ChartQuery(year: 2010, country: 'Italy'),
+              now: DateTime(2026, 10, 17)),
+          throwsA(isA<ChartLookupException>().having((e) => e.message,
+              'message', allOf(contains('built in'), contains('Claude API key')))));
+    });
+
+    test('the shipped built-in charts cover 7 countries, 2000-2025, with '
+        'known styles', () {
+      final data = jsonDecode(
+              File(BuiltInCharts.assetPath).readAsStringSync())
+          as Map<String, dynamic>;
+      expect(data.keys.toSet(), BuiltInCharts.countries.toSet());
+      for (final country in BuiltInCharts.countries) {
+        final years = data[country] as Map<String, dynamic>;
+        for (var y = BuiltInCharts.firstYear; y <= BuiltInCharts.lastYear; y++) {
+          final songs = years['$y'] as List?;
+          expect(songs, isNotNull, reason: '$country $y');
+          expect(songs!.length, greaterThanOrEqualTo(15), reason: '$country $y');
+          for (final s in songs) {
+            expect(s, hasLength(3), reason: '$country $y $s');
+            expect((s as List)[0].toString().trim(), isNotEmpty);
+            expect(s[1].toString().trim(), isNotEmpty);
+            expect(ChartQuery.styles, contains(s[2]), reason: '$country $y $s');
+          }
+        }
+      }
     });
 
     test('asks Claude with web search, resumes after pause_turn and reads '
@@ -158,8 +249,20 @@ void main() {
       }
     }
 
-    testWidgets('defaults to Pop; without a key it points to Settings',
-        (tester) async {
+    testWidgets("defaults to Pop; works without a key (this year's chart "
+        'from Deezer)', (tester) async {
+      late Directory tempDir;
+      await tester.runAsync(() async {
+        tempDir = await Directory.systemTemp.createTemp('mp3_charts_nokey');
+        Config.mp3DownloadFolder = tempDir.path;
+      });
+      addTearDown(() => tempDir.delete(recursive: true));
+      DeezerCharts.instance.client = fakeDeezer([]);
+      Mp3DownloaderService.instance.searchOverride = (query, limit) async => [
+            Mp3SearchResult(
+                videoId: query, title: query, channel: 'C', duration: null),
+          ];
+
       await tester.pumpWidget(const MaterialApp(home: Mp3DownloaderPage()));
       await tester.tap(find.text('Top songs from the charts'));
       await tester.pumpAndSettle();
@@ -167,8 +270,10 @@ void main() {
       expect(find.text('Top 10 Pop · Belgium · $year'), findsOneWidget);
 
       await tester.tap(find.text('Find chart songs'));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('Charts need a Claude API key'),
+      final marker = find.text('Top 10 Pop · Belgium · $year · 2 of 2 selected');
+      await pumpUntil(tester, marker);
+      expect(marker, findsOneWidget);
+      expect(find.textContaining("Deezer's chart for Belgium right now"),
           findsOneWidget);
     });
 

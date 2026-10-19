@@ -1906,7 +1906,8 @@ flavor there; `lib/main_music.dart` is now `lib/main.dart`, and the music flavor
 overlay (`android/app/src/music/AndroidManifest.xml`) is now the app's only manifest
 (`android/app/src/main/AndroidManifest.xml`), with the same text/plain-only `ShareActivity`.
 
-- **Music mini widget** (`MusicMiniWidgetProvider.kt`, 0.2.61): a single play/pause button plus
+- *(Since 0.3.64 these are the Obsidian-style Music 1×2 / 1×3 widgets plus a 2×3 one — §10.6ai.)*
+  **Music mini widget** (`MusicMiniWidgetProvider.kt`, 0.2.61): a single play/pause button plus
   a one-line title, nothing else. **Music controls widget** (`MusicControlsWidgetProvider.kt`,
   0.2.61): the same, plus skip-previous and (0.2.63) skip-next buttons. Both differ from every
   other widget here: their buttons don't call into Dart at all (there is no in-memory
@@ -2493,3 +2494,35 @@ snackbar "Shortened to m:ss.t" with Undo. Tests: `test/music/audio_trimmer_test.
 ffmpeg-made fixtures in `test/fixtures/audio/` (CBR and VBR MP3, AAC M4A, WAV); the trimmed
 outputs were checked with ffprobe/ffmpeg (length, tags, error-free decode) when written.
 
+
+### 10.6ai Obsidian-style widgets: 1×2, 1×3, 2×3 (Best Music 0.3.64)
+
+The home-screen widgets are redone after Obsidian Music's media card (§10.6ac;
+`varun7009/obsidian-music` screenshots `Pill.jpg`/`Player.jpg`): a near-black card with 24 dp
+corners (`widget_card_bg`), a bold title over a dimmer artist, a light round play/pause button
+with a dark icon (`widget_play_bg`, `ic_widget_play_dark`/`ic_widget_pause_dark`) and dark
+round skip buttons (`widget_button_bg`). Sizes are rows × columns, given as
+`targetCellWidth`/`targetCellHeight` with `minWidth`/`minHeight` = 70 × cells − 30 dp:
+
+- **Music 1×2** — `MusicMiniWidgetProvider`, `music_mini_widget_layout`: play/pause, title,
+  artist.
+- **Music 1×3** — `MusicControlsWidgetProvider`, `music_controls_widget_layout`: 44 dp cover
+  tile (music-note placeholder), title, artist, play/pause, next.
+- **Music 2×3** — `MusicLargeWidgetProvider` (new), `music_large_widget_layout`: the cover
+  fills the card under a top-to-bottom dark scrim (`widget_scrim`), "Best Music" at the top,
+  title and artist above a previous / play-pause / next row.
+
+The two old provider class names are kept so placed widgets become the new 1×2/1×3. Why the old
+ones were broken: a 40 dp-tall widget held a title plus a 40 dp button (clipped), and nothing
+else. All three share `MusicWidgetViews.kt` (same view ids; a view a layout lacks is skipped)
+and the existing intents (play/pause through `MusicPlayGuardActivity`, skips as media-button
+broadcasts); tapping anywhere else opens the app. Plain `View`s aren't allowed in RemoteViews,
+so spacers are `FrameLayout`s and the scrim an `ImageView`.
+
+**Cover** — `MusicWidgetService` also writes `music_widget_audio_file` (a local song's path; the
+native side reads its embedded picture with `MediaMetadataRetriever`) and
+`music_widget_art_file` (an `http(s)`/`file` `artUri`, e.g. a YouTube thumbnail, downloaded once
+to `widget_art/<sha1>.img`, older ones deleted; it wins over the embedded picture). A new cover
+being downloaded first shows the new song without one. Bitmaps are scaled to ≤ 360 px and
+cached per song. `MusicWidgetService.artSourceFor` picks the source; tested in
+`test/music/music_widget_service_test.dart`.

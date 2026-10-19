@@ -79,7 +79,7 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-        <!-- Home-screen widgets: play/pause and controls. -->
+        <!-- Home-screen widgets: Music 1x2, 1x3 and 2x3. -->
         <receiver
             android:name=".MusicMiniWidgetProvider"
             android:exported="true"
@@ -99,6 +99,16 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider"
                 android:resource="@xml/music_controls_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".MusicLargeWidgetProvider"
+            android:exported="true"
+            android:label="@string/music_large_widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider"
+                android:resource="@xml/music_large_widget_info" />
         </receiver>
         <!-- Receives background taps from the home-screen widgets -->
         <receiver

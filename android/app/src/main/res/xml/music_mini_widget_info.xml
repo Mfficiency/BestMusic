@@ -1,9 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 1 row x 2 columns (min size = 70 x cells - 30 dp). -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:minWidth="40dp"
+    android:minWidth="110dp"
     android:minHeight="40dp"
-    android:updatePeriodMillis="86400000"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="40dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="0"
     android:initialLayout="@layout/music_mini_widget_layout"
+    android:previewLayout="@layout/music_mini_widget_layout"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen">
 </appwidget-provider>

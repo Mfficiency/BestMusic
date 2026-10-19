@@ -1,58 +1,87 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 1x3 Music widget: cover, title over artist, play/pause, next. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/music_controls_widget_container"
+    android:id="@+id/music_widget_container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="@android:color/black"
-    android:padding="4dp">
+    android:background="@drawable/widget_card_bg"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="8dp"
+    android:paddingEnd="8dp">
 
-    <TextView
-        android:id="@+id/music_controls_widget_title"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:maxLines="1"
-        android:ellipsize="end"
-        android:paddingLeft="4dp"
-        android:paddingRight="4dp"
-        android:text="Nothing playing"
-        android:textColor="@android:color/white"
-        android:textSize="10sp" />
+    <FrameLayout
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="@drawable/widget_art_bg"
+        android:clipToOutline="true">
+
+        <ImageView
+            android:id="@+id/music_widget_art_placeholder"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:padding="10dp"
+            android:src="@drawable/ic_widget_music_note" />
+
+        <ImageView
+            android:id="@+id/music_widget_art"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="Cover"
+            android:scaleType="centerCrop"
+            android:visibility="gone" />
+    </FrameLayout>
 
     <LinearLayout
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center">
+        android:layout_marginStart="10dp"
+        android:layout_marginEnd="6dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
 
-        <ImageButton
-            android:id="@+id/music_controls_widget_previous"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="@android:color/transparent"
-            android:scaleType="fitCenter"
-            android:contentDescription="Previous"
-            android:src="@drawable/ic_skip_previous" />
+        <TextView
+            android:id="@+id/music_widget_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Nothing playing"
+            android:textColor="#FFFFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold" />
 
-        <ImageButton
-            android:id="@+id/music_controls_widget_play_pause"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="@android:color/transparent"
-            android:scaleType="fitCenter"
-            android:contentDescription="Play/Pause"
-            android:src="@drawable/ic_play_arrow" />
-
-        <ImageButton
-            android:id="@+id/music_controls_widget_next"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="@android:color/transparent"
-            android:scaleType="fitCenter"
-            android:contentDescription="Next"
-            android:src="@drawable/ic_skip_next" />
-
+        <TextView
+            android:id="@+id/music_widget_artist"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Tap to open Best Music"
+            android:textColor="#A6FFFFFF"
+            android:textSize="12sp" />
     </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/music_widget_play_pause"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:background="@drawable/widget_play_bg"
+        android:contentDescription="Play"
+        android:padding="9dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_widget_play_dark" />
+
+    <ImageButton
+        android:id="@+id/music_widget_next"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_marginStart="6dp"
+        android:background="@drawable/widget_button_bg"
+        android:contentDescription="Next"
+        android:padding="8dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_skip_next" />
 
 </LinearLayout>

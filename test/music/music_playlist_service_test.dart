@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:best_music/config.dart';
 import 'package:best_music/models/music_playlist.dart';
 import 'package:best_music/models/playlist_rule.dart';
 import 'package:best_music/models/track.dart';
@@ -28,6 +29,7 @@ void main() {
   });
 
   tearDown(() async {
+    Config.mostPlayedLimit = Config.defaultMostPlayedLimit;
     await tempDir.delete(recursive: true);
   });
 
@@ -316,6 +318,26 @@ void main() {
       final resolved = MusicPlaylistService.instance.resolvedTracks(playlist);
 
       expect(resolved, [popular, lessPopular]);
+    });
+
+    test('mostPlayed shows the top 50 by default, Config.mostPlayedLimit when set',
+        () async {
+      MusicLibraryService.instance.tracks.value = [
+        for (var i = 0; i < 60; i++) track('t$i', playCount: i + 1),
+      ];
+      final playlist = MusicPlaylist(
+          id: MusicPlaylistService.mostPlayedId, name: 'Most Played', kind: PlaylistKind.mostPlayed);
+
+      final byDefault = MusicPlaylistService.instance.resolvedTracks(playlist);
+      expect(byDefault, hasLength(50));
+      expect(byDefault.first.title, 't59');
+
+      Config.mostPlayedLimit = 3;
+      expect(MusicPlaylistService.instance.resolvedTracks(playlist).map((t) => t.title),
+          ['t59', 't58', 't57']);
+
+      Config.mostPlayedLimit = 1000;
+      expect(MusicPlaylistService.instance.resolvedTracks(playlist), hasLength(60));
     });
 
     test('mostPlayed with a genreFilter only considers that genre', () async {

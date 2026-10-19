@@ -798,7 +798,12 @@ plus `genreFilter` (scopes `mostPlayed`) and `ruleSet` (drives `rule`), all JSON
 `MusicPlaylistService.smartPlaylists` computes "Last Added" and "Most Played" (overall, plus one
 per distinct `Track.genre` present in the library) fresh from `MusicLibraryService.instance.tracks`
 on every read — never persisted, never deletable, empty entirely when the library itself is
-empty. Both cap at `smartPlaylistLimit` (50) tracks. `MusicPlaylistService.resolvedTracks(playlist)`
+empty. "Last Added" caps at `smartPlaylistLimit` (50) tracks; every "Most Played" list
+(overall and per genre) at `Config.mostPlayedLimit` (`settings.json` key `mostPlayedLimit`,
+default 50, clamped to 1..1000 on load), set under Settings → Playback → "Most Played size"
+(a number dialog; anything outside 1..1000 is rejected with a snackbar). Changing it re-announces
+`MusicPlaylistService.playlists` (`notifySmartPlaylistsChanged`) so the Playlists tab's counts
+follow. `MusicPlaylistService.resolvedTracks(playlist)`
 is the one place that turns any `MusicPlaylist` (whatever its `kind`) into an actual `List<Track>`
 — `MusicPlaylistDetailPage`/the Playlists tab's track-count subtitle both go through it instead of
 reading `trackIds` directly, so they work uniformly across stored and computed playlists.

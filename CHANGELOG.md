@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.62] - 2026-10-19
+- Top songs from the charts: each song now comes from its lyric video on YouTube when there is one (those are more often the clean version); otherwise the usual video.
+
 ## [0.3.61] - 2026-10-19
 - Shorten a song: ⋮ → Shorten song (or the scissors on Track info). Pick where it should start and end with the slider or ±1 second steps, listen to both edges, then Shorten. The file itself is cut, without re-encoding, so it sounds exactly the same and keeps its tags.
 - By default the song is shortened in place: Undo is offered right away, and the original is kept for 7 days. Or switch on "Save as a new song" to keep the original and get a shortened copy next to it.

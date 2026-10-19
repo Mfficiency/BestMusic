@@ -2398,8 +2398,10 @@ asks for it), `output_config.effort: medium`, `fallbacks: "default"` under
 answer gets one "please use submit_songs" follow-up; a refusal or API error becomes a readable
 `ChartLookupException`. `ChartQuery.prompt` asks for the year-end chart (the year-to-date ranking
 for the current year), Ultratop (Flanders) for Belgium, global charts for Worldwide, and a genre
-chart or the style's songs from the main chart. The page then runs `Mp3DownloaderService.search
-("Artist - Title", limit: 1)` per song (progress: an `EstimatedProgressBar` with remaining time
+chart or the style's songs from the main chart. The page then searches YouTube per song, lyric video first
+(0.3.62): `search("Artist - Title lyrics", limit: 5)` and takes the first hit whose title says
+"lyric" and contains the song title (`ChartSong.pickLyricsVideo`; lyric videos are more often the
+clean edit), else `search("Artist - Title", limit: 1)` (progress: an `EstimatedProgressBar` with remaining time
 while Claude searches, then "Finding the videos: i of N"), skips songs with no video or a
 duplicate video (listed in a snackbar), and opens the result in the playlist picker
 (`_showTrackPicker`, shared with playlist links: already-saved songs unticked, All/None,

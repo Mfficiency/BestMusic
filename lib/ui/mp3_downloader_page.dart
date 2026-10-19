@@ -500,20 +500,28 @@ class _Mp3DownloaderPageState extends State<Mp3DownloaderPage> {
               'Finding the videos: ${i + 1} of ${chart.songs.length}';
           _chartProgress = i / chart.songs.length;
         });
-        List<Mp3SearchResult> found;
+        // A lyric video first (more often the clean version), else the
+        // plain search's top hit.
+        Mp3SearchResult? found;
         try {
-          found = await _service.search(song.searchQuery, limit: 1);
-        } catch (_) {
-          found = const [];
-        }
+          found = song.pickLyricsVideo(
+              await _service.search(song.lyricsQuery, limit: 5));
+        } catch (_) {}
         if (!mounted) return;
-        if (found.isEmpty ||
-            tracks.any((t) => t.videoId == found.first.videoId)) {
+        if (found == null) {
+          try {
+            final plain = await _service.search(song.searchQuery, limit: 1);
+            if (plain.isNotEmpty) found = plain.first;
+          } catch (_) {}
+          if (!mounted) return;
+        }
+        final video = found;
+        if (video == null || tracks.any((t) => t.videoId == video.videoId)) {
           missing.add(song);
           continue;
         }
-        tracks.add(found.first);
-        labels[found.first.videoId] = '${i + 1} · ${song.searchQuery}';
+        tracks.add(video);
+        labels[video.videoId] = '${i + 1} · ${song.searchQuery}';
       }
       if (tracks.isEmpty) {
         setState(() {

@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../config.dart';
 import 'builtin_charts.dart';
+import 'mp3_downloader_service.dart' show Mp3SearchResult;
 
 /// What the MP3 Downloader's "Top songs from the charts" asks for.
 class ChartQuery {
@@ -90,11 +91,12 @@ class ChartQuery {
 
 /// One song of a chart.
 class ChartSong {
-  const ChartSong(
-      {required this.artist,
-      required this.title,
-      this.note = '',
-      this.style = ''});
+  const ChartSong({
+    required this.artist,
+    required this.title,
+    this.note = '',
+    this.style = '',
+  });
 
   final String artist;
   final String title;
@@ -107,6 +109,28 @@ class ChartSong {
 
   /// What to search YouTube for.
   String get searchQuery => artist.isEmpty ? title : '$artist - $title';
+
+  /// Searched first: lyric videos are more often the clean (radio) edit.
+  String get lyricsQuery => '$searchQuery lyrics';
+
+  /// The first of [results] that is a lyric video of this song (its title
+  /// says "lyric" and holds the song title), or null.
+  Mp3SearchResult? pickLyricsVideo(List<Mp3SearchResult> results) {
+    final core = _normalize(
+      title
+          .split(RegExp(r'\s*[(\[]|\s+-\s+|\s+feat', caseSensitive: false))
+          .first,
+    );
+    for (final r in results) {
+      final t = r.title.toLowerCase();
+      if (!t.contains('lyric')) continue;
+      if (core.isEmpty || _normalize(t).contains(core)) return r;
+    }
+    return null;
+  }
+
+  static String _normalize(String s) =>
+      s.toLowerCase().replaceAll(RegExp(r'[^\p{L}\p{N}]+', unicode: true), '');
 }
 
 /// Where a chart came from.
@@ -122,10 +146,11 @@ enum ChartSource {
 }
 
 class ChartLookupResult {
-  const ChartLookupResult(
-      {required this.songs,
-      this.summary = '',
-      this.source = ChartSource.claude});
+  const ChartLookupResult({
+    required this.songs,
+    this.summary = '',
+    this.source = ChartSource.claude,
+  });
 
   final List<ChartSong> songs;
   final ChartSource source;
@@ -216,25 +241,31 @@ class ChartLookupService {
     final builtIn = await BuiltInCharts.instance.lookup(query);
     if (builtIn != null) return builtIn;
     if (query.year >= (now ?? DateTime.now()).year) {
-      final songs =
-          await DeezerCharts.instance.currentChart(query.country, query.count);
+      final songs = await DeezerCharts.instance.currentChart(
+        query.country,
+        query.count,
+      );
       return ChartLookupResult(
         songs: songs,
         source: ChartSource.deezer,
-        summary: "Deezer's chart for ${query.country} right now"
+        summary:
+            "Deezer's chart for ${query.country} right now"
             '${query.style == ChartQuery.allStyles ? '' : ' (all styles: Deezer charts have no style)'}.',
       );
     }
     throw ChartLookupException(
-        'Without a Claude API key, charts are built in for '
-        '${BuiltInCharts.countries.join(', ')} from ${BuiltInCharts.firstYear} '
-        "to ${BuiltInCharts.lastYear}, plus this year's chart for every "
-        'country. For ${query.country} ${query.year}, add a Claude API key in '
-        'Settings → Transcripts & summaries.');
+      'Without a Claude API key, charts are built in for '
+      '${BuiltInCharts.countries.join(', ')} from ${BuiltInCharts.firstYear} '
+      "to ${BuiltInCharts.lastYear}, plus this year's chart for every "
+      'country. For ${query.country} ${query.year}, add a Claude API key in '
+      'Settings → Transcripts & summaries.',
+    );
   }
 
   Future<ChartLookupResult> _lookupWithClaude(
-      String key, ChartQuery query) async {
+    String key,
+    ChartQuery query,
+  ) async {
     final http.Client httpClient = client ?? http.Client();
     try {
       final first = {'role': 'user', 'content': query.prompt()};
@@ -257,7 +288,7 @@ class ChartLookupService {
         if (reply['stop_reason'] == 'pause_turn') {
           messages = [
             first,
-            {'role': 'assistant', 'content': content}
+            {'role': 'assistant', 'content': content},
           ];
           continue;
         }
@@ -267,7 +298,7 @@ class ChartLookupService {
           {'role': 'assistant', 'content': content},
           {
             'role': 'user',
-            'content': 'Please hand over the list with submit_songs.'
+            'content': 'Please hand over the list with submit_songs.',
           },
         ];
       }
@@ -277,8 +308,11 @@ class ChartLookupService {
     }
   }
 
-  Future<Map<String, Object?>> _post(http.Client httpClient, String key,
-      List<Map<String, Object?>> messages) async {
+  Future<Map<String, Object?>> _post(
+    http.Client httpClient,
+    String key,
+    List<Map<String, Object?>> messages,
+  ) async {
     final body = {
       'model': model,
       'max_tokens': 16000,
@@ -316,8 +350,10 @@ class ChartLookupService {
     if (response.statusCode != 200) {
       final error = decoded is Map ? decoded['error'] : null;
       final message = error is Map ? error['message'] : null;
-      throw ChartLookupException('Claude API error ${response.statusCode}'
-          '${message != null ? ': $message' : ''}');
+      throw ChartLookupException(
+        'Claude API error ${response.statusCode}'
+        '${message != null ? ': $message' : ''}',
+      );
     }
     if (decoded is! Map) {
       throw ChartLookupException('Unexpected reply from Claude');

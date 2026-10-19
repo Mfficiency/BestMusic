@@ -295,10 +295,28 @@ void main() {
       Mp3DownloaderService.instance.searchOverride = (query, limit) async {
         searched.add(query);
         if (query.startsWith('Nobody')) return const [];
-        final id = query.startsWith('Artist One') ? 'v1' : 'v2';
+        // Song One has a lyric video (picked over the explicit one listed
+        // first); Song Two only has the official video.
+        if (query == 'Artist One - Song One lyrics') {
+          return const [
+            Mp3SearchResult(
+                videoId: 'v1x', title: 'Artist One - Song One (Explicit)',
+                channel: 'C', duration: null),
+            Mp3SearchResult(
+                videoId: 'v1', title: 'Artist One - Song One (Lyrics)',
+                channel: 'C', duration: null),
+          ];
+        }
+        if (query.endsWith(' lyrics')) {
+          return const [
+            Mp3SearchResult(
+                videoId: 'other', title: 'Someone Else - Other Song (Lyrics)',
+                channel: 'C', duration: null),
+          ];
+        }
         return [
           Mp3SearchResult(
-              videoId: id, title: '$query (Official Video)', channel: 'C',
+              videoId: 'v2', title: '$query (Official Video)', channel: 'C',
               duration: null),
         ];
       };
@@ -317,8 +335,11 @@ void main() {
       final marker = find.text('Top 10 Pop · Belgium · $year · 2 of 2 selected');
       await pumpUntil(tester, marker);
       expect(marker, findsOneWidget);
-      expect(searched, ['Artist One - Song One', 'Artist Two - Song Two',
-        'Nobody - Not On YouTube']);
+      expect(searched, [
+        'Artist One - Song One lyrics',
+        'Artist Two - Song Two lyrics', 'Artist Two - Song Two',
+        'Nobody - Not On YouTube lyrics', 'Nobody - Not On YouTube',
+      ]);
       expect(find.textContaining('1 · Artist One - Song One'), findsOneWidget);
       expect(find.textContaining('No video found for: Nobody - Not On YouTube'),
           findsOneWidget);

@@ -2504,8 +2504,10 @@ with a dark icon (`widget_play_bg`, `ic_widget_play_dark`/`ic_widget_pause_dark`
 round skip buttons (`widget_button_bg`). Sizes are rows × columns, given as
 `targetCellWidth`/`targetCellHeight` with `minWidth`/`minHeight` = 70 × cells − 30 dp:
 
-- **Music 1×2** — `MusicMiniWidgetProvider`, `music_mini_widget_layout`: play/pause, title,
-  artist.
+- **Music 1×2** — `MusicMiniWidgetProvider`, `music_mini_widget_layout`: the title (one
+  line, centred) over previous / play-pause / next (30/34/30 dp). Since 0.3.65; in 0.3.64 it
+  was play/pause beside title and artist. Tapping the title (or the card) only opens the app
+  — `MainActivity` starts nothing for a widget launch.
 - **Music 1×3** — `MusicControlsWidgetProvider`, `music_controls_widget_layout`: 44 dp cover
   tile (music-note placeholder), title, artist, play/pause, next.
 - **Music 2×3** — `MusicLargeWidgetProvider` (new), `music_large_widget_layout`: the cover

@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.65] - 2026-10-19
+- Music 1×2 widget: the song's name on top with previous, play/pause and next under it. Tapping the name just opens the app; nothing starts playing.
+
 ## [0.3.64] - 2026-10-19
 - Home-screen widgets redone in the style of Obsidian Music, in three sizes: Music 1×2 (play/pause with the song and artist), Music 1×3 (cover, song, play/pause and next) and Music 2×3 (the cover fills the card, with previous, play/pause and next underneath). The old widgets were cramped and cut off their buttons; ones you already placed turn into the new 1×2 and 1×3 by themselves.
 

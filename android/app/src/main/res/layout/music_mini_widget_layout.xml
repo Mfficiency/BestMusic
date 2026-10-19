@@ -1,52 +1,68 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 1x2 Music widget: play/pause, then title over artist. -->
+<!-- 1x2 Music widget: the song's name (tap = open the app, nothing plays),
+     with previous / play-pause / next under it. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/music_widget_container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_card_bg"
-    android:gravity="center_vertical"
-    android:orientation="horizontal"
-    android:paddingStart="8dp"
-    android:paddingEnd="12dp">
+    android:gravity="center"
+    android:orientation="vertical"
+    android:paddingStart="10dp"
+    android:paddingTop="4dp"
+    android:paddingEnd="10dp"
+    android:paddingBottom="4dp">
 
-    <ImageButton
-        android:id="@+id/music_widget_play_pause"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:background="@drawable/widget_play_bg"
-        android:contentDescription="Play"
-        android:padding="9dp"
-        android:scaleType="fitCenter"
-        android:src="@drawable/ic_widget_play_dark" />
+    <TextView
+        android:id="@+id/music_widget_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:gravity="center"
+        android:maxLines="1"
+        android:text="Nothing playing"
+        android:textColor="#FFFFFFFF"
+        android:textSize="12sp"
+        android:textStyle="bold" />
 
     <LinearLayout
-        android:layout_width="0dp"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
-        android:layout_weight="1"
-        android:orientation="vertical">
+        android:layout_marginTop="2dp"
+        android:gravity="center"
+        android:orientation="horizontal">
 
-        <TextView
-            android:id="@+id/music_widget_title"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:text="Nothing playing"
-            android:textColor="#FFFFFFFF"
-            android:textSize="13sp"
-            android:textStyle="bold" />
+        <ImageButton
+            android:id="@+id/music_widget_previous"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:background="@drawable/widget_button_bg"
+            android:contentDescription="Previous"
+            android:padding="7dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_skip_previous" />
 
-        <TextView
-            android:id="@+id/music_widget_artist"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:text="Tap to open Best Music"
-            android:textColor="#A6FFFFFF"
-            android:textSize="11sp" />
+        <ImageButton
+            android:id="@+id/music_widget_play_pause"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="10dp"
+            android:background="@drawable/widget_play_bg"
+            android:contentDescription="Play"
+            android:padding="8dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_widget_play_dark" />
+
+        <ImageButton
+            android:id="@+id/music_widget_next"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:background="@drawable/widget_button_bg"
+            android:contentDescription="Next"
+            android:padding="7dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_skip_next" />
     </LinearLayout>
 
 </LinearLayout>

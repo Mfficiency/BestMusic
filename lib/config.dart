@@ -168,6 +168,13 @@ class Config {
   /// Bluetooth/wired headphones or speaker) — see `SpeakerPlayGuard`.
   static bool musicConfirmSpeakerPlay = true;
 
+  /// How many songs the "Most Played" smart playlists (overall and per
+  /// genre) show at most, [minMostPlayedLimit]..[maxMostPlayedLimit].
+  static int mostPlayedLimit = defaultMostPlayedLimit;
+  static const int defaultMostPlayedLimit = 50;
+  static const int minMostPlayedLimit = 1;
+  static const int maxMostPlayedLimit = 1000;
+
   /// The phone's media volume (0..1) last used for music — local/Subsonic
   /// songs and songs streamed from the library search's YouTube fallback —
   /// and for Subscriptions videos. There is no app-specific volume:
@@ -278,6 +285,7 @@ class Config {
       'musicTrackSortAscending': musicTrackSortAscending,
       'musicBpmPresets': [for (final p in musicBpmPresets) p.toJson()],
       'musicConfirmSpeakerPlay': musicConfirmSpeakerPlay,
+      'mostPlayedLimit': mostPlayedLimit,
       'musicPhoneVolume': musicPhoneVolume,
       'videoPhoneVolume': videoPhoneVolume,
       'phoneVolumeKind': phoneVolumeKind,
@@ -331,6 +339,12 @@ class Config {
     }
     musicConfirmSpeakerPlay =
         data['musicConfirmSpeakerPlay'] as bool? ?? musicConfirmSpeakerPlay;
+    final savedMostPlayedLimit = data['mostPlayedLimit'];
+    if (savedMostPlayedLimit is num) {
+      mostPlayedLimit = savedMostPlayedLimit
+          .round()
+          .clamp(minMostPlayedLimit, maxMostPlayedLimit);
+    }
     musicPhoneVolume = (data['musicPhoneVolume'] as num?)
             ?.toDouble()
             .clamp(0.0, 1.0)

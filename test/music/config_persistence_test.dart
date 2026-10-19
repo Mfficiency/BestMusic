@@ -85,4 +85,19 @@ void main() {
     expect(Config.subsonicServerUrl, isEmpty);
     expect(Config.subsonicUsername, isEmpty);
   });
+
+  test('the Most Played size is saved, and clamped to 1..1000 on load',
+      () async {
+    Config.mostPlayedLimit = 200;
+    await Config.save();
+    Config.mostPlayedLimit = Config.defaultMostPlayedLimit;
+    await Config.load();
+    expect(Config.mostPlayedLimit, 200);
+
+    Config.applyMap({'mostPlayedLimit': 5000});
+    expect(Config.mostPlayedLimit, Config.maxMostPlayedLimit);
+    Config.applyMap({'mostPlayedLimit': 0});
+    expect(Config.mostPlayedLimit, Config.minMostPlayedLimit);
+    Config.mostPlayedLimit = Config.defaultMostPlayedLimit;
+  });
 }

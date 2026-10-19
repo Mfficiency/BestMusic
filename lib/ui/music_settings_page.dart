@@ -11,6 +11,7 @@ import '../services/music_backup_service.dart';
 import '../services/music_widget_service.dart';
 import '../services/app_updates.dart';
 import '../services/music_library_service.dart';
+import '../services/music_playlist_service.dart';
 import '../services/media_volume.dart';
 import '../services/music_sleep_timer.dart';
 import '../services/server_catalog.dart';
@@ -210,6 +211,34 @@ class _MusicSettingsPageState extends State<MusicSettingsPage> {
 
   /// Collapses everything while any section is open, expands everything
   /// once they are all closed.
+  Future<void> _editMostPlayedLimit() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final value = await showDialog<String>(
+      context: context,
+      builder: (_) => _TextSettingDialog(
+        title: 'Most Played size',
+        initial: '${Config.mostPlayedLimit}',
+        hint: '${Config.minMostPlayedLimit}–${Config.maxMostPlayedLimit}',
+        number: true,
+      ),
+    );
+    if (value == null || !mounted) return;
+    final limit = int.tryParse(value.trim());
+    if (limit == null ||
+        limit < Config.minMostPlayedLimit ||
+        limit > Config.maxMostPlayedLimit) {
+      messenger.showSnackBar(SnackBar(
+          content: Text('Not changed: enter a number from '
+              '${Config.minMostPlayedLimit} to ${Config.maxMostPlayedLimit}')));
+      return;
+    }
+    setState(() => Config.mostPlayedLimit = limit);
+    unawaited(Config.save());
+    // Playlist lists listen to the playlists notifier; nudge them so open
+    // track counts pick up the new size.
+    MusicPlaylistService.instance.notifySmartPlaylistsChanged();
+  }
+
   Widget _buildCollapseAllBar() {
     final anyExpanded = _collapsed.length < MusicSettingsSection.values.length;
     return Row(
@@ -417,6 +446,15 @@ class _MusicSettingsPageState extends State<MusicSettingsPage> {
                           unawaited(Config.save());
                           unawaited(MusicWidgetService.pushConfirmSetting());
                         },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.trending_up),
+                        title: const Text('Most Played size'),
+                        subtitle: Text('Top ${Config.mostPlayedLimit} songs — '
+                            'how many the Most Played playlists show '
+                            '(${Config.minMostPlayedLimit}–'
+                            '${Config.maxMostPlayedLimit})'),
+                        onTap: _editMostPlayedLimit,
                       ),
                       ListTile(
                         leading: const Icon(Icons.volume_up_outlined),
@@ -1033,12 +1071,14 @@ class _TextSettingDialog extends StatefulWidget {
     required this.initial,
     required this.hint,
     this.secret = false,
+    this.number = false,
   });
 
   final String title;
   final String initial;
   final String hint;
   final bool secret;
+  final bool number;
 
   @override
   State<_TextSettingDialog> createState() => _TextSettingDialogState();
@@ -1063,6 +1103,7 @@ class _TextSettingDialogState extends State<_TextSettingDialog> {
         autofocus: true,
         obscureText: widget.secret,
         autocorrect: !widget.secret,
+        keyboardType: widget.number ? TextInputType.number : null,
         decoration: InputDecoration(hintText: widget.hint),
         onSubmitted: (v) => Navigator.of(context).pop(v),
       ),

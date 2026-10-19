@@ -42,6 +42,8 @@ import 'subpage_app_bar.dart';
 import 'track_file_menu.dart';
 import 'track_selection_bar.dart';
 import 'track_metadata_page.dart';
+import 'trim_song_page.dart';
+import '../services/track_trimmer.dart';
 import 'youtube_feed_page.dart';
 
 /// Tools → Music Player: browse/play tracks scanned from
@@ -1597,6 +1599,14 @@ class _TrackListViewState extends State<TrackListView>
                               await pickFolderAndMove(context, track);
                             }
                             break;
+                          case 'trim':
+                            if (context.mounted) {
+                              Navigator.of(context).push(MaterialPageRoute(
+                                builder: (_) =>
+                                    TrimSongPage(trackId: track.id),
+                              ));
+                            }
+                            break;
                           case 'delete':
                             if (context.mounted) {
                               await confirmAndDeleteTrack(context, track);
@@ -1667,6 +1677,17 @@ class _TrackListViewState extends State<TrackListView>
                               SizedBox(width: 8),
                               Flexible(
                                   child: Text('Move to folder',
+                                      overflow: TextOverflow.ellipsis)),
+                            ]),
+                          ),
+                        if (TrackTrimmer.canTrim(track))
+                          const PopupMenuItem(
+                            value: 'trim',
+                            child: Row(children: [
+                              Icon(Icons.content_cut, size: 18),
+                              SizedBox(width: 8),
+                              Flexible(
+                                  child: Text('Shorten song',
                                       overflow: TextOverflow.ellipsis)),
                             ]),
                           ),

@@ -1,32 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 1x2 Music widget: play/pause, then title over artist. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/music_mini_widget_container"
+    android:id="@+id/music_widget_container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center"
-    android:background="@android:color/black"
-    android:padding="4dp">
-
-    <TextView
-        android:id="@+id/music_mini_widget_title"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:maxLines="1"
-        android:ellipsize="end"
-        android:text="Nothing playing"
-        android:textColor="@android:color/white"
-        android:textSize="10sp" />
+    android:background="@drawable/widget_card_bg"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="8dp"
+    android:paddingEnd="12dp">
 
     <ImageButton
-        android:id="@+id/music_mini_widget_play_pause"
+        android:id="@+id/music_widget_play_pause"
         android:layout_width="40dp"
         android:layout_height="40dp"
-        android:layout_gravity="center"
-        android:background="@android:color/transparent"
+        android:background="@drawable/widget_play_bg"
+        android:contentDescription="Play"
+        android:padding="9dp"
         android:scaleType="fitCenter"
-        android:contentDescription="Play/Pause"
-        android:src="@drawable/ic_play_arrow" />
+        android:src="@drawable/ic_widget_play_dark" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/music_widget_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Nothing playing"
+            android:textColor="#FFFFFFFF"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/music_widget_artist"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Tap to open Best Music"
+            android:textColor="#A6FFFFFF"
+            android:textSize="11sp" />
+    </LinearLayout>
 
 </LinearLayout>

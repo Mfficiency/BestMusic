@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Best Music</string>
-    <string name="music_mini_widget_name">Music (play/pause)</string>
-    <string name="music_controls_widget_name">Music (controls)</string>
+    <string name="music_mini_widget_name">Music 1×2</string>
+    <string name="music_controls_widget_name">Music 1×3</string>
+    <string name="music_large_widget_name">Music 2×3</string>
 </resources>

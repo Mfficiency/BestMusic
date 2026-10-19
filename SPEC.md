@@ -798,7 +798,12 @@ plus `genreFilter` (scopes `mostPlayed`) and `ruleSet` (drives `rule`), all JSON
 `MusicPlaylistService.smartPlaylists` computes "Last Added" and "Most Played" (overall, plus one
 per distinct `Track.genre` present in the library) fresh from `MusicLibraryService.instance.tracks`
 on every read — never persisted, never deletable, empty entirely when the library itself is
-empty. Both cap at `smartPlaylistLimit` (50) tracks. `MusicPlaylistService.resolvedTracks(playlist)`
+empty. "Last Added" caps at `smartPlaylistLimit` (50) tracks; every "Most Played" list
+(overall and per genre) at `Config.mostPlayedLimit` (`settings.json` key `mostPlayedLimit`,
+default 50, clamped to 1..1000 on load), set under Settings → Playback → "Most Played size"
+(a number dialog; anything outside 1..1000 is rejected with a snackbar). Changing it re-announces
+`MusicPlaylistService.playlists` (`notifySmartPlaylistsChanged`) so the Playlists tab's counts
+follow. `MusicPlaylistService.resolvedTracks(playlist)`
 is the one place that turns any `MusicPlaylist` (whatever its `kind`) into an actual `List<Track>`
 — `MusicPlaylistDetailPage`/the Playlists tab's track-count subtitle both go through it instead of
 reading `trackIds` directly, so they work uniformly across stored and computed playlists.
@@ -2399,7 +2404,7 @@ answer gets one "please use submit_songs" follow-up; a refusal or API error beco
 `ChartLookupException`. `ChartQuery.prompt` asks for the year-end chart (the year-to-date ranking
 for the current year), Ultratop (Flanders) for Belgium, global charts for Worldwide, and a genre
 chart or the style's songs from the main chart. The page then searches YouTube per song, lyric video first
-(0.3.62): `search("Artist - Title lyrics", limit: 5)` and takes the first hit whose title says
+(0.3.63): `search("Artist - Title lyrics", limit: 5)` and takes the first hit whose title says
 "lyric" and contains the song title (`ChartSong.pickLyricsVideo`; lyric videos are more often the
 clean edit), else `search("Artist - Title", limit: 1)` (progress: an `EstimatedProgressBar` with remaining time
 while Claude searches, then "Finding the videos: i of N"), skips songs with no video or a

@@ -5,8 +5,11 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
-## [0.3.62] - 2026-10-19
+## [0.3.63] - 2026-10-19
 - Top songs from the charts: each song now comes from its lyric video on YouTube when there is one (those are more often the clean version); otherwise the usual video.
+
+## [0.3.62] - 2026-10-19
+- Most Played now shows how many songs you want: Settings → Playback → Most Played size, any number from 1 to 1000 (still the top 50 unless you change it). The per-genre Most Played lists follow it too.
 
 ## [0.3.61] - 2026-10-19
 - Shorten a song: ⋮ → Shorten song (or the scissors on Track info). Pick where it should start and end with the slider or ±1 second steps, listen to both edges, then Shorten. The file itself is cut, without re-encoding, so it sounds exactly the same and keeps its tags.

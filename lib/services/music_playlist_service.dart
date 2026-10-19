@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../config.dart';
 import '../models/music_playlist.dart';
 import '../models/playlist_rule.dart';
 import '../models/track.dart';
@@ -305,8 +306,16 @@ class MusicPlaylistService {
   static const String lastAddedId = 'smart_last_added';
   static const String mostPlayedId = 'smart_most_played';
 
-  /// How many tracks a computed ("smart") playlist shows at most.
+  /// How many tracks "Last Added" shows at most. "Most Played" uses
+  /// [Config.mostPlayedLimit] instead (Settings → Playback, default 50).
   static const int smartPlaylistLimit = 50;
+
+  /// Re-announces [playlists] so views built on it recompute
+  /// [smartPlaylists] — after a setting that shapes them changed
+  /// ([Config.mostPlayedLimit]).
+  void notifySmartPlaylistsChanged() {
+    playlists.value = List<MusicPlaylist>.of(playlists.value);
+  }
 
   /// Built-in computed playlists — "Last Added" and "Most Played" (overall,
   /// plus one per genre present in the library). Never persisted or
@@ -374,7 +383,7 @@ class MusicPlaylistService {
             : libraryTracks.where((t) => t.genre == genreFilter).toList();
         final played = scoped.where((t) => t.playCount > 0).toList()
           ..sort((a, b) => b.playCount.compareTo(a.playCount));
-        return played.take(smartPlaylistLimit).toList();
+        return played.take(Config.mostPlayedLimit).toList();
       case PlaylistKind.rule:
         final ruleSet = playlist.ruleSet;
         if (ruleSet == null) return const [];

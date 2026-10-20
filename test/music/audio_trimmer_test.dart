@@ -255,5 +255,55 @@ void main() {
       // 2.0 s to 4.07 s (the tone is 5.07 s long; the end moved back 1 s).
       expect(length!.inMilliseconds, closeTo(2067, 40));
     });
+
+    testWidgets('scroll through the song with the listen bar and set the '
+        'start and the end there', (tester) async {
+      final path = '${dir.path}/song.mp3';
+      await tester.runAsync(() => File('$fixtures/cbr.mp3').copy(path));
+      final track = Track.local(filePath: path, title: 'Song');
+      MusicLibraryService.instance.tracks.value = [track];
+
+      await tester.pumpWidget(
+          MaterialApp(home: TrimSongPage(trackId: track.id)));
+      await pumpUntil(
+          tester, () => find.byType(RangeSlider).evaluate().isNotEmpty);
+      final listen = find.byKey(const ValueKey('trimListen'));
+      expect(find.text('0:00.0 / 0:05.0'), findsOneWidget);
+
+      // Drag the bar to 1.5 s and start there.
+      final slider = tester.widget<Slider>(listen);
+      slider.onChangeStart!(0);
+      slider.onChanged!(1530);
+      slider.onChangeEnd!(1530);
+      await tester.pump();
+      expect(find.text('0:01.5 / 0:05.0'), findsOneWidget);
+      await tester.tap(find.text('Start here'));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('trimStart')), findsOneWidget);
+      expect(
+          tester.widget<Text>(find.byKey(const ValueKey('trimStart'))).data,
+          '0:01.5');
+
+      // Forward 5 s stops at the song's end; back 5 s from there is 0:00.0.
+      await tester.tap(find.byTooltip('Forward 5 seconds'));
+      await tester.pump();
+      expect(find.text('0:05.0 / 0:05.0'), findsOneWidget);
+      await tester.tap(find.byTooltip('Back 5 seconds'));
+      await tester.tap(find.byTooltip('Forward 5 seconds'));
+      await tester.pump();
+      slider.onChanged!(3500);
+      await tester.pump();
+      await tester.tap(find.text('End here'));
+      await tester.pump();
+      expect(tester.widget<Text>(find.byKey(const ValueKey('trimEnd'))).data,
+          '0:03.5');
+      expect(find.text('Now 0:05.0 · keeps 0:02.0'), findsOneWidget);
+
+      // Dragging an edge moves the listen bar to it.
+      final range = tester.widget<RangeSlider>(find.byType(RangeSlider));
+      range.onChanged!(const RangeValues(1000, 3500));
+      await tester.pump();
+      expect(find.text('0:01.0 / 0:05.0'), findsOneWidget);
+    });
   });
 }

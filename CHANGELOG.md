@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.68] - 2026-10-20
+- Shorten song: a new listen bar lets you scroll through the whole song to find the start and end quickly. Drag it, jump 5 seconds back or forward, play from there, then tap "Start here" or "End here". Dragging the start or end handle moves the bar there too.
+
 ## [0.3.67] - 2026-10-20
 - Now Playing: the Info tab (tap ⓘ) has a "Shorten song" button next to "Edit info". Shorten song now moves the start and end in steps of 0.1 second, and the slider snaps to tenths of a second.
 

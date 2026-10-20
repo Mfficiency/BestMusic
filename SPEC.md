@@ -2491,7 +2491,13 @@ Track info app bar (scissors, tooltip "Shorten song") and (0.3.67) a "Shorten so
 to "Edit info" on Now Playing's Info tab (`TrackInfoView`, only when `canTrim`): the exact
 length read from the file, a `RangeSlider` snapping to 0.1 s (min 1 s kept), ±0.1 s buttons
 per edge (tooltips "Start 0.1 second earlier/later", "End …"; ±1 s until 0.3.67), previews of the first/last 5 s through a
-page-local `just_audio` player (`ClippingAudioSource`), "Save as a new song" switch, Shorten →
+page-local `just_audio` player (`ClippingAudioSource`); (0.3.68) a listen bar under the range
+slider to scroll through the song: a `Slider` (key `trimListen`) over the whole song, snapping to
+0.1 s, with "m:ss.t / m:ss.t", ⏪/⏩ 5 s (tooltips "Back 5 seconds"/"Forward 5 seconds"),
+play/pause of the whole file from the bar ("Listen from here"/"Pause"; dragging seeks while it
+plays, the bar follows playback and the edge previews), and "Start here"/"End here" buttons that
+set that edge to the bar (keeping 1 s). Dragging a range-slider edge moves the bar to it; "Save as
+a new song" switch, Shorten →
 snackbar "Shortened to m:ss.t" with Undo. Tests: `test/music/audio_trimmer_test.dart` with
 ffmpeg-made fixtures in `test/fixtures/audio/` (CBR and VBR MP3, AAC M4A, WAV); the trimmed
 outputs were checked with ffprobe/ffmpeg (length, tags, error-free decode) when written.

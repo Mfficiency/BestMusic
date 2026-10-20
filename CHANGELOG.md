@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.66] - 2026-10-20
+- Music 2×3 widget: dislike, like and heart buttons at the top right. Dislike marks the song disliked and skips it, like puts it in Liked songs, and the heart adds it to or removes it from Favorites. The thumbs-up and heart light up when the song is already liked or a favorite. They work while music is playing (or paused), without opening the app.
+
 ## [0.3.65] - 2026-10-19
 - Music 1×2 widget: the song's name on top with previous, play/pause and next under it. Tapping the name just opens the app; nothing starts playing.
 

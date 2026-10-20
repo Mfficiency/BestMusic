@@ -2512,7 +2512,17 @@ round skip buttons (`widget_button_bg`). Sizes are rows × columns, given as
   tile (music-note placeholder), title, artist, play/pause, next.
 - **Music 2×3** — `MusicLargeWidgetProvider` (new), `music_large_widget_layout`: the cover
   fills the card under a top-to-bottom dark scrim (`widget_scrim`), "Best Music" at the top,
-  title and artist above a previous / play-pause / next row.
+  title and artist above a previous / play-pause / next row. Since 0.3.66 the top row also has
+  **dislike / like / heart** (34 dp, transparent; thumbs-up blue when the song is in Liked
+  songs, heart filled pink when in Favorites, from `music_widget_liked`/`music_widget_favorite`,
+  which `MusicWidgetService` writes on every sync and whenever the playlists change). There's
+  no media-button key for these, so they're broadcasts to `MusicWidgetActionReceiver.kt`
+  (not exported), which binds `audio_service`'s `AudioService` with a `MediaBrowserCompat`
+  (`androidx.media:media:1.7.0`) and sends the custom action `widget_dislike` /
+  `widget_like` / `widget_favorite` to the session; `MusicAudioHandler.customAction` runs
+  `dislikeCurrentAndSkip` / `swipeUpCurrent` (only when not liked yet, so a second tap doesn't
+  count another swipe) / `favoriteCurrent`. With no running playback session the action is
+  dropped. Tests: `music_audio_handler_test.dart` ("widget actions").
 
 The two old provider class names are kept so placed widgets become the new 1×2/1×3. Why the old
 ones were broken: a 40 dp-tall widget held a title plus a 40 dp button (clipped), and nothing

@@ -68,4 +68,18 @@ object MusicWidgetIntents {
 
     fun next(context: Context): PendingIntent =
         mediaButtonPendingIntent(context, KeyEvent.KEYCODE_MEDIA_NEXT)
+
+    /** A custom media-session action (like / dislike / favorite), sent by
+     *  [MusicWidgetActionReceiver]; [requestCode] keeps each one distinct. */
+    fun customAction(context: Context, action: String, requestCode: Int): PendingIntent {
+        val intent = Intent(context, MusicWidgetActionReceiver::class.java).apply {
+            putExtra(MusicWidgetActionReceiver.EXTRA_CUSTOM_ACTION, action)
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+    }
 }

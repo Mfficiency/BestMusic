@@ -110,6 +110,10 @@
             <meta-data android:name="android.appwidget.provider"
                 android:resource="@xml/music_large_widget_info" />
         </receiver>
+        <!-- The 2x3 widget's like / dislike / heart buttons. -->
+        <receiver
+            android:name=".MusicWidgetActionReceiver"
+            android:exported="false" />
         <!-- Receives background taps from the home-screen widgets -->
         <receiver
             android:name="es.antonborri.home_widget.HomeWidgetBackgroundReceiver"

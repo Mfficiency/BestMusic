@@ -130,6 +130,15 @@ class MainActivity : AudioServiceFragmentActivity() {
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "isExternalOutputConnected" -> result.success(AudioOutputs.isExternalConnected(this))
+                // Now playing for the Wear OS watch app
+                // (lib/services/wear_now_playing.dart -> WearSync).
+                "publishWearNowPlaying" -> {
+                    val json = call.argument<String>("json")
+                    if (json != null) {
+                        WearSync.publish(applicationContext, WearSync.NOW_PLAYING_PATH, json)
+                    }
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }

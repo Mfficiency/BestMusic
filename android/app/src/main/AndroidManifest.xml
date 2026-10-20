@@ -138,6 +138,20 @@
             android:taskAffinity=""
             android:launchMode="singleInstance"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <!-- The Wear OS watch app's buttons (wear/ in this repo): play/pause,
+             next, previous and volume messages from the watch, bound by Play
+             services only while one arrives (WearCommandService). -->
+        <service
+            android:name=".WearCommandService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data
+                    android:host="*"
+                    android:pathPrefix="/music/command/"
+                    android:scheme="wear" />
+            </intent-filter>
+        </service>
         <!-- Background song-info search (MusicMetadataEnricher): an ongoing
              "Filling in song info…" notification that keeps the process
              alive while other apps are in front. specialUse because no

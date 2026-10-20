@@ -11,6 +11,7 @@ import '../config.dart';
 import '../models/track.dart';
 import 'music_audio_handler.dart';
 import 'music_playlist_service.dart';
+import 'wear_now_playing.dart';
 
 /// Bridges live playback state to the three Music home-screen widgets
 /// (1×2, 1×3 and 2×3, styled after Obsidian Music's media card).
@@ -21,7 +22,8 @@ import 'music_playlist_service.dart';
 /// `MusicPlayGuardActivity`, which asks "Play out loud?" first when
 /// nothing is connected. This service keeps their title, cover and play/pause
 /// icon in sync with what's actually playing, and hands that activity the
-/// "Ask before playing out loud" setting ([pushConfirmSetting]).
+/// "Ask before playing out loud" setting ([pushConfirmSetting]). The Wear OS
+/// watch app gets the same now-playing state ([WearNowPlaying]).
 class MusicWidgetService {
   MusicWidgetService._();
 
@@ -83,7 +85,18 @@ class MusicWidgetService {
     try {
       await _ready();
       final item = handler.mediaItem.valueOrNull;
-      final playing = handler.playbackState.valueOrNull?.playing ?? false;
+      final state = handler.playbackState.valueOrNull;
+      final playing = state?.playing ?? false;
+      // The Wear OS watch app gets the same state (it never waits on this).
+      WearNowPlaying.publish(WearNowPlayingState(
+        hasTrack: item != null,
+        title: item?.title ?? '',
+        artist: item?.artist ?? '',
+        playing: playing,
+        positionMs: item == null ? 0 : (state?.position.inMilliseconds ?? 0),
+        durationMs: item?.duration?.inMilliseconds ?? 0,
+        at: DateTime.now().millisecondsSinceEpoch,
+      ));
       await HomeWidget.saveWidgetData<String>(
           'music_widget_title', item?.title ?? '');
       await HomeWidget.saveWidgetData<String>(

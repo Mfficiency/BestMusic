@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The watch app's Data Layer capability (the phone advertises
+     best_music_phone, android/app/src/main/res/values/wear.xml). Kept by
+     resource shrinking: it is only read by Play services. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@array/android_wear_capabilities">
+    <string-array name="android_wear_capabilities" translatable="false">
+        <item>best_music_wear</item>
+    </string-array>
+</resources>

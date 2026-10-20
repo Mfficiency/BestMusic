@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.69] - 2026-10-20
+- New: Best Music Watch, a Wear OS app for the watch (made for the Galaxy Watch6 Classic). It shows what the phone plays, with play/pause, previous and next, and turning the bezel changes the phone's volume. It says when the phone is out of reach and shows the last song it saw. Install it from the wear-music release next to this one (see wear/README.md); the phone app itself only gained what the watch needs to talk to it.
+
 ## [0.3.68] - 2026-10-20
 - Shorten song: a new listen bar lets you scroll through the whole song to find the start and end quickly. Drag it, jump 5 seconds back or forward, play from there, then tap "Start here" or "End here". Dragging the start or end handle moves the bar there too.
 

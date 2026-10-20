@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Best Music</string>
+
+    <string name="status_checking">Looking for your phone…</string>
+    <string name="status_connected">Phone connected</string>
+    <string name="status_nothing_playing">Nothing playing</string>
+    <string name="status_not_reachable">Phone not reachable</string>
+    <string name="status_not_reachable_saved">Phone not reachable · saved %1$s</string>
+    <string name="status_update_phone_app">Update Best Music on your phone</string>
+
+    <string name="no_title">Unknown song</string>
+    <string name="press_play">Press play on the watch or phone</string>
+
+    <string name="play">Play</string>
+    <string name="pause">Pause</string>
+    <string name="previous">Previous</string>
+    <string name="next">Next</string>
+    <string name="volume_down">Volume down</string>
+    <string name="volume_up">Volume up</string>
+    <string name="volume">Volume</string>
+    <string name="volume_level">Volume %1$d/%2$d</string>
+    <string name="retry">Retry</string>
+
+    <string name="out_loud_title">Play out loud?</string>
+    <string name="out_loud_message">Nothing is connected to the phone, so music will play from its speaker.</string>
+    <string name="out_loud_play">Play</string>
+    <string name="out_loud_cancel">Cancel</string>
+
+    <string name="error_not_reachable">Phone not reachable</string>
+    <string name="error_send_failed">Couldn\'t reach the phone</string>
+</resources>

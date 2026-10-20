@@ -44,6 +44,11 @@ run `tool\build.ps1 release`: it builds that channel's APK and publishes a GitHu
 tag `music-v<x.y.z>-<build>` (+ `-dev` / `-staging`, prereleases). Every channel is the same app
 (`com.mfficiency.best_music`), which installs the highest build of any channel.
 
+The same run builds the **Wear OS watch app** (`wear/`, a remote for the phone's player) after
+the phone release and publishes it as its own release, tag `wear-music-v…` (never offered to
+phones; `WEAR=0` skips it, a failing watch build never fails the phone release). Build,
+install with wireless ADB and test: [`wear/README.md`](wear/README.md).
+
 Signing: release builds need `android/key.properties` (the upload key every Best Music install
 is signed with). It is not in git; copy it from the BestToDo working copy
 (`D:\Code\best_todo_2\android\key.properties`, the same key), and the laptop builder keeps its

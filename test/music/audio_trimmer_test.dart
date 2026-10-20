@@ -228,12 +228,21 @@ void main() {
       await pumpUntil(tester, () => find.byType(RangeSlider).evaluate().isNotEmpty);
 
       expect(find.text('Now 0:05.0 · keeps 0:05.0'), findsOneWidget);
-      await tester.tap(find.byTooltip('Start 1 second later'));
-      await tester.tap(find.byTooltip('Start 1 second later'));
-      await tester.tap(find.byTooltip('End 1 second earlier'));
+      // The steps are 0.1 s: start 2.0 s later, end 1.0 s earlier.
+      for (var i = 0; i < 20; i++) {
+        await tester.tap(find.byTooltip('Start 0.1 second later'));
+      }
+      for (var i = 0; i < 10; i++) {
+        await tester.tap(find.byTooltip('End 0.1 second earlier'));
+      }
       await tester.pump();
       expect(find.text('0:02.0'), findsOneWidget);
       expect(find.text('Now 0:05.0 · keeps 0:02.0'), findsOneWidget);
+      await tester.tap(find.byTooltip('Start 0.1 second earlier'));
+      await tester.pump();
+      expect(find.text('0:01.9'), findsOneWidget);
+      await tester.tap(find.byTooltip('Start 0.1 second later'));
+      await tester.pump();
 
       await tester.tap(find.text('Shorten'));
       await pumpUntil(tester, () => find.text('open').evaluate().isNotEmpty &&

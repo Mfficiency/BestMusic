@@ -2486,9 +2486,11 @@ Keep original: `<name> (short).<ext>` (or `(short 2)`…) becomes a new library 
 "<title> (short)" with fresh counters. `undo` moves the original back (or deletes the copy) and
 restores the library entry.
 
-`lib/ui/trim_song_page.dart` (`TrimSongPage`), from a song's ⋮ menu ("Shorten song") and the
-Track info app bar (scissors, tooltip "Shorten song"): the exact length read from the file, a
-`RangeSlider` (min 1 s kept), ±1 s buttons per edge, previews of the first/last 5 s through a
+`lib/ui/trim_song_page.dart` (`TrimSongPage`), from a song's ⋮ menu ("Shorten song"), the
+Track info app bar (scissors, tooltip "Shorten song") and (0.3.67) a "Shorten song" button next
+to "Edit info" on Now Playing's Info tab (`TrackInfoView`, only when `canTrim`): the exact
+length read from the file, a `RangeSlider` snapping to 0.1 s (min 1 s kept), ±0.1 s buttons
+per edge (tooltips "Start 0.1 second earlier/later", "End …"; ±1 s until 0.3.67), previews of the first/last 5 s through a
 page-local `just_audio` player (`ClippingAudioSource`), "Save as a new song" switch, Shorten →
 snackbar "Shortened to m:ss.t" with Undo. Tests: `test/music/audio_trimmer_test.dart` with
 ffmpeg-made fixtures in `test/fixtures/audio/` (CBR and VBR MP3, AAC M4A, WAV); the trimmed

@@ -17,8 +17,8 @@ String formatTrimTime(Duration d) {
   return '$m:${s.toString().padLeft(2, '0')}.$tenth';
 }
 
-/// "Shorten song": pick a start and an end (slider plus ±1 s steps,
-/// previews of both edges), then [TrackTrimmer.trim] cuts the file itself
+/// "Shorten song": pick a start and an end to the tenth of a second
+/// (slider snapping to 0.1 s plus ±0.1 s steps, previews of both edges), then [TrackTrimmer.trim] cuts the file itself
 /// — in place with Undo, or as a new song next to it.
 class TrimSongPage extends StatefulWidget {
   const TrimSongPage({super.key, required this.trackId});
@@ -38,7 +38,11 @@ class _TrimSongPageState extends State<TrimSongPage> {
   bool _working = false;
   ja.AudioPlayer? _preview;
 
-  static const _step = Duration(seconds: 1);
+  /// What ± moves an edge by, and what the slider snaps to.
+  static const _step = Duration(milliseconds: 100);
+
+  /// The shortest song Shorten leaves.
+  static const _minKeep = Duration(seconds: 1);
   static const _previewLength = Duration(seconds: 5);
 
   Track? get _track => MusicLibraryService.instance.byId(widget.trackId);
@@ -75,15 +79,22 @@ class _TrimSongPageState extends State<TrimSongPage> {
 
   void _setStart(Duration d) {
     final length = _length!;
-    setState(() => _start = _clamp(d, Duration.zero, _end - _step));
+    setState(() => _start = _clamp(d, Duration.zero, _end - _minKeep));
     assert(_start <= length);
   }
 
   void _setEnd(Duration d) =>
-      setState(() => _end = _clamp(d, _start + _step, _length!));
+      setState(() => _end = _clamp(d, _start + _minKeep, _length!));
 
   static Duration _clamp(Duration d, Duration lo, Duration hi) =>
       d < lo ? lo : (d > hi ? hi : d);
+
+  /// [ms] rounded to the nearest 0.1 s, within the song.
+  Duration _snap(double ms) {
+    final step = _step.inMilliseconds;
+    final snapped = Duration(milliseconds: (ms / step).round() * step);
+    return snapped > _length! ? _length! : snapped;
+  }
 
   Future<void> _play(Duration from, Duration to) async {
     final path = _track?.filePath;
@@ -166,14 +177,13 @@ class _TrimSongPageState extends State<TrimSongPage> {
                       onChanged: _working
                           ? null
                           : (v) => setState(() {
-                                _start =
-                                    Duration(milliseconds: v.start.round());
-                                _end = Duration(milliseconds: v.end.round());
-                                if (_end - _start < _step) {
-                                  _end = _start + _step > length
+                                _start = _snap(v.start);
+                                _end = _snap(v.end);
+                                if (_end - _start < _minKeep) {
+                                  _end = _start + _minKeep > length
                                       ? length
-                                      : _start + _step;
-                                  _start = _end - _step;
+                                      : _start + _minKeep;
+                                  _start = _end - _minKeep;
                                 }
                               }),
                     ),
@@ -250,13 +260,13 @@ class _TrimSongPageState extends State<TrimSongPage> {
         SizedBox(width: 48, child: Text(label)),
         IconButton(
           icon: const Icon(Icons.remove),
-          tooltip: '$label 1 second earlier',
+          tooltip: '$label 0.1 second earlier',
           onPressed: _working ? null : onMinus,
         ),
         Text(formatTrimTime(value), key: ValueKey('trim$label')),
         IconButton(
           icon: const Icon(Icons.add),
-          tooltip: '$label 1 second later',
+          tooltip: '$label 0.1 second later',
           onPressed: _working ? null : onPlus,
         ),
         const Spacer(),

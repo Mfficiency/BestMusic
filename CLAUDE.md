@@ -37,6 +37,10 @@ relates to BestToDo, where it came from).
   `python organizer/organizer.py`.
 - Live checks (network, not part of `flutter test`): `flutter test tool/check_mp3_download.dart`,
   `dart run tool/scan_music_metadata.dart`.
+- Wear OS watch app (a remote for the phone's player; Kotlin/Compose, its own Gradle build in
+  `wear/`, not part of the phone build): `wear/gradlew -p wear test|assembleRelease`; everything
+  (sync paths, phone side `WearSync.kt`/`WearCommandService.kt`/`wear_now_playing.dart`,
+  release tag `wear-music-v…`, install) in `wear/README.md`.
 
 ## Workflow
 

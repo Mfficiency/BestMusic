@@ -2546,3 +2546,38 @@ to `widget_art/<sha1>.img`, older ones deleted; it wins over the embedded pictur
 being downloaded first shows the new song without one. Bitmaps are scaled to ≤ 360 px and
 cached per song. `MusicWidgetService.artSourceFor` picks the source; tested in
 `test/music/music_widget_service_test.dart`.
+
+### 10.6aj Wear OS watch app (Best Music 0.3.69)
+
+A Wear OS companion in `wear/` (Kotlin + Compose for Wear OS, its own Gradle build, not part
+of `android/settings.gradle.kts`; full details, build and install in `wear/README.md`), for the
+Galaxy Watch6 Classic: a remote for the phone's player. One non-scrolling screen: a status line
+("Phone connected" / "Nothing playing" / "Phone not reachable · saved hh:mm" / "Update Best
+Music on your phone", Retry chip when offline), song + artist, a progress bar the watch counts
+on itself, previous / play-pause / next, and the phone's media volume with the rotating bezel
+or − / +. Same applicationId `com.mfficiency.best_music` and signing key as the phone (Data
+Layer requirement); Kotlin package / namespace `com.mfficiency.best_music.wear`. Not standalone.
+
+Phone side (kept tiny, it ships in every phone release):
+- `lib/services/wear_now_playing.dart` — `MusicWidgetService._sync` (where the widgets get
+  their state) calls `WearNowPlaying.publish`, which sends `{hasTrack, title, artist, playing,
+  positionMs, durationMs, at}` through `besttodo/audio_output` → `publishWearNowPlaying` →
+  `WearSync.kt` (DataItem `/music/now_playing`, urgent) only when the song, play state or
+  length changed or the position jumped > 3 s. Fire-and-forget; nothing off Android or in
+  tests. Tests: `test/music/wear_now_playing_test.dart`.
+- `WearCommandService.kt` (`WearableListenerService`, exported, `MESSAGE_RECEIVED` with
+  `pathPrefix=/music/command/`): `play_pause` / `next` / `previous` = the widgets' media-button
+  broadcasts (`MusicWidgetIntents.mediaButtonBroadcast`); play/pause makes
+  `MusicPlayGuardActivity`'s "Play out loud?" check from the widget prefs and, where it would
+  ask, sends `/music/ask_out_loud` to the watch, which asks and answers `play_out_loud`;
+  `volume_up` / `volume_down` (steps as text) = `adjustStreamVolume(STREAM_MUSIC)`, then the
+  level goes back as DataItem `/music/volume`; `sync` publishes the volume only.
+- Capability `best_music_phone` (`res/values/wear.xml`, `tools:keep`); dependency
+  `com.google.android.gms:play-services-wearable:18.2.0`. Phones without Play services or
+  without a watch: the requests just fail and are logged.
+
+Release: `tool\build.ps1 release` builds the watch after the phone release
+(`build/wear/BestMusic-Watch-<x.y.z>-<build>[-channel].apk`) and, with `PUBLISH=1`, publishes it
+as its own release `wear-music-v…` (prerelease off main, never Latest). The phone updater
+(`matchesTagPrefix`, prefix `music-v`) and the same-code lookup (`^music-v…`) never see those
+tags. A failing watch build is only a warning (`WEAR_BUILD_RESULT`); `WEAR=0` skips it.

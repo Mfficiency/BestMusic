@@ -20,9 +20,17 @@
 #                  prereleases) via tool/publish_apk.dart. Without it the APK
 #                  is only built, into build/channel/.
 #   FORCE_RELEASE=1  build even when the same code is released already.
+#   WEAR=0         skip the Wear OS watch app (see below).
 # It commits and pushes nothing, exits 0 without building when the release
 # already exists, and refuses to build without android/key.properties (the
 # upload key every Best Music install is signed with; not in git).
+#
+# After the phone APK (built, and published with PUBLISH=1), "release" also
+# builds the Wear OS watch app (wear/, its own Gradle build, see
+# wear/README.md) into build/wear/ and, with PUBLISH=1, publishes it as a
+# separate GitHub release, tag wear-<phone tag> (never "Latest"; the phone's
+# updater only takes music-v<digit>... tags). That step can't fail or change
+# the phone release: any error is a warning, plus a WEAR_BUILD_RESULT line.
 param(
   [Parameter(ValueFromRemainingArguments = $true)]
   [string[]]$BuildArgs
@@ -178,6 +186,88 @@ function Assert-KeyProperties {
   }
 }
 
+# The Wear OS watch app (wear/): built after the phone release, published
+# (PUBLISH=1) as its own release wear-<phone tag>. Never throws and leaves
+# $LASTEXITCODE and the environment as they were, so the phone release's
+# result is exactly what it would be without it. WEAR=0 skips it.
+function Invoke-WearRelease {
+  param(
+    [string]$Channel,
+    [string]$Version,
+    [string]$Number,
+    [string]$Suffix,
+    [string]$Sha,
+    [bool]$Publish
+  )
+  if ("$env:WEAR" -eq "0") {
+    Write-Host "==> watch: WEAR=0 -- skipped"
+    Write-Host "WEAR_BUILD_RESULT status=skipped"
+    return
+  }
+  $savedExit = $global:LASTEXITCODE
+  $savedRequire = $env:REQUIRE_RELEASE_KEY
+  $savedJava = $env:JAVA_HOME
+  try {
+    $phoneTag = "music-v$Version-$Number$Suffix"
+    $tag = "wear-$phoneTag"
+    $gradlew = Join-Path (Get-Location) "wear\gradlew.bat"
+    if (-not (Test-Path -LiteralPath $gradlew)) { throw "$gradlew not found" }
+    # Flutter writes android/local.properties (sdk.dir=...): the watch build
+    # uses the same Android SDK.
+    $sdkLine = $null
+    if (Test-Path -LiteralPath "android/local.properties") {
+      $sdkLine = Get-Content -LiteralPath "android/local.properties" |
+        Where-Object { $_ -match '^\s*sdk\.dir\s*=' } | Select-Object -First 1
+    }
+    if ($sdkLine) {
+      Set-Content -LiteralPath "wear/local.properties" -Value $sdkLine -Encoding ASCII
+    } elseif ([string]::IsNullOrWhiteSpace($env:ANDROID_HOME) -and [string]::IsNullOrWhiteSpace($env:ANDROID_SDK_ROOT)) {
+      throw "no sdk.dir in android/local.properties and no ANDROID_HOME"
+    }
+    if ([string]::IsNullOrWhiteSpace($env:JAVA_HOME)) {
+      $jbr = "C:\Program Files\Android\Android Studio\jbr"
+      if (Test-Path -LiteralPath $jbr) { $env:JAVA_HOME = $jbr }
+    }
+    # wear/app/build.gradle.kts refuses the debug key when this is set.
+    $env:REQUIRE_RELEASE_KEY = "1"
+    $wearApk = "wear/app/build/outputs/apk/release/app-release.apk"
+    if (Test-Path -LiteralPath $wearApk) { Remove-Item -LiteralPath $wearApk -Force }
+    Write-Host "==> watch: wear\gradlew.bat -p wear assembleRelease (build $Number, $Version)"
+    Invoke-Checked $gradlew @("-p", "wear", "assembleRelease", "-PbuildNumber=$Number",
+      "-PversionName=$Version", "--no-daemon")
+    if (-not (Test-Path -LiteralPath $wearApk)) { throw "the watch build produced no $wearApk" }
+    New-Item -ItemType Directory -Force -Path "build/wear" | Out-Null
+    $out = "build/wear/BestMusic-Watch-$Version-$Number$Suffix.apk"
+    Copy-Item -LiteralPath $wearApk -Destination $out -Force
+    Write-Host "    built $out"
+    if (-not $Publish) {
+      Write-Host "WEAR_BUILD_RESULT status=built apk=$out"
+      return
+    }
+    $repo = "Mfficiency/BestMusic"
+    if ((Test-Native "gh" @("release", "view", $tag, "--repo", $repo)) -eq 0) {
+      Invoke-Checked "gh" @("release", "upload", $tag, $out, "--repo", $repo, "--clobber")
+    } else {
+      $title = "Best Music Watch $Version ($Channel)"
+      $notes = "Wear OS watch app for Best Music [$phoneTag](https://github.com/$repo/releases/tag/$phoneTag) " +
+        "(same build, same signing key). Install it on the watch with wireless ADB: " +
+        "``adb -s <watch-ip>:<port> install -r $(Split-Path $out -Leaf)`` (wear/README.md)."
+      $ghArgs = @("release", "create", $tag, $out, "--repo", $repo, "--title", $title,
+        "--notes", $notes, "--target", $Sha, "--latest=false")
+      if ($Channel -ne "main") { $ghArgs += "--prerelease" }
+      Invoke-Checked "gh" $ghArgs
+    }
+    Write-Host "WEAR_BUILD_RESULT status=published tag=$tag apk=$out"
+  } catch {
+    Write-Warning "Watch APK not built: $_"
+    Write-Host "WEAR_BUILD_RESULT status=failed"
+  } finally {
+    $env:REQUIRE_RELEASE_KEY = $savedRequire
+    $env:JAVA_HOME = $savedJava
+    $global:LASTEXITCODE = $savedExit
+  }
+}
+
 function Invoke-ChannelRelease {
   $channel = if ([string]::IsNullOrWhiteSpace($env:BUILD_CHANNEL)) { "main" } else { $env:BUILD_CHANNEL.Trim().ToLower() }
   if (@("main", "staging", "dev") -notcontains $channel) {
@@ -246,10 +336,12 @@ function Invoke-ChannelRelease {
 
   if (-not $publish) {
     Write-Host "    PUBLISH is not 1: nothing published"
+    Invoke-WearRelease -Channel $channel -Version $name -Number $number -Suffix $suffix -Sha $sha -Publish $false
     return
   }
   Invoke-Checked "dart" (@("run", "tool/publish_apk.dart", "--channel", $channel,
     "--apk", $out, "--target", $sha, "--duration", "$seconds") + $numberArgs)
+  Invoke-WearRelease -Channel $channel -Version $name -Number $number -Suffix $suffix -Sha $sha -Publish $true
 }
 
 Set-Location (Resolve-Path (Join-Path $PSScriptRoot ".."))

@@ -25,6 +25,7 @@ import 'changelog_page.dart';
 import 'estimated_progress_bar.dart';
 import 'fast_scroll_list.dart';
 import 'home_scaffold_key.dart';
+import 'audiobooks_page.dart';
 import 'mp3_downloader_page.dart';
 import 'music_about_page.dart';
 import 'music_metadata_scan_page.dart';
@@ -227,6 +228,11 @@ class _MusicPlayerPageState extends State<MusicPlayerPage>
                 title: const Text('MP3 Downloader'),
                 onTap: () =>
                     _pushStandalonePage(() => const Mp3DownloaderPage()),
+              ),
+              ListTile(
+                leading: const Icon(Icons.menu_book_outlined),
+                title: const Text('Audiobooks'),
+                onTap: () => _pushStandalonePage(() => const AudiobooksPage()),
               ),
               ListTile(
                 leading: const Icon(Icons.star_border),

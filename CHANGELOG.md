@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.71] - 2026-10-23
+- Full backup before every update: before an update installs, Best Music now saves everything it keeps on the phone (library, playlists, subscriptions, download history, play history, resume positions, Wishlist, settings including the music server login, and songs downloaded into the app's own folder) in one file in Download/Best Music/Backups, which stays when the app is uninstalled. Settings → Backup has "Back up everything" and "Restore everything from a backup"; a new install offers to restore one. The newest 3 are kept. Copies the app downloads again by itself (kept server songs, cached Subscriptions videos, widget covers) are left out. The file holds your music server password and Claude key, so keep it to yourself. Android only.
+
 ## [0.3.70] - 2026-10-23
 - New in Tools: Audiobooks. Search free audiobooks from LibriVox by title or author, open one to see what it's about and its chapters, then download the whole book or single chapters. Each book goes into its own folder (Audiobooks/Author - Title) in your MP3 Downloader folder, one MP3 per chapter, numbered so they play in order. Downloads keep going when you leave the page, and downloading a book again picks up the chapters still missing.
 

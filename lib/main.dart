@@ -43,6 +43,9 @@ Future<void> _initStep(String label, Future<void> Function() step) async {
 Future<void> main() async {
   StartupTimeService.start();
   WidgetsFlutterBinding.ensureInitialized();
+  // Before anything is loaded or written: only a new install (no data yet)
+  // is offered to restore a full backup (see AppUpdates.backup).
+  final hadAppData = kIsWeb || await AppUpdates.hasAppData();
   await _initStep('config', Config.load);
   MusicTheme.darkMode.value = Config.darkMode;
   await _initStep('music library', MusicLibraryService.instance.load);
@@ -58,7 +61,9 @@ Future<void> main() async {
   unawaited(VideoAudioCache.instance.purgeExpired());
   // In-app updates of Best Music's own builds (`music-v…` tags; the shared
   // mfficiency_updates package, see AppUpdates). No network here.
-  await _initStep('updates', () => AppUpdates.create());
+  // Also the full backup to Downloads, made before every update.
+  await _initStep(
+      'updates', () => AppUpdates.create(hadAppData: hadAppData));
   runApp(const BestMusicApp());
   WidgetsBinding.instance.addPostFrameCallback((_) {
     StartupTimeService.record();

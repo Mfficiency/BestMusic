@@ -1,7 +1,10 @@
+import 'dart:async' show unawaited;
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:mfficiency_updates/mfficiency_updates.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config.dart';
@@ -22,6 +25,7 @@ export 'package:mfficiency_updates/mfficiency_updates.dart';
 ///   own tags are `v…`), every 15 minutes while open (GitHub's anonymous
 ///   limit is 60 requests/hour), always checking automatically;
 /// * the app's date format ([strings]) and log ([LogService]);
+/// * the full backup before every update ([backup], [backupConfig]);
 /// * the update prefs from before the package ([migrateLegacyState]).
 class AppUpdates {
   AppUpdates._();
@@ -43,6 +47,69 @@ class AppUpdates {
   /// The running app's updates; null until [create] ran (tests set it,
   /// pages without one show no update UI).
   static UpdateController? controller;
+
+  /// The running app's full backup (everything the app keeps, in one file
+  /// in `Download/Best Music/Backups`, kept when the app is uninstalled):
+  /// made before every update and from Settings → Backup. Null until
+  /// [create] ran; Android only (nothing happens elsewhere).
+  static FullBackup? backup;
+
+  /// What the full backup takes: the app's documents, support and external
+  /// folders (every JSON store, settings, music_server.json, the Wishlist,
+  /// lyrics, the 7-day trim backups, and MP3s/audiobooks downloaded into the
+  /// app's own folder, which uninstalling would delete) and its
+  /// SharedPreferences. Left out: copies the app downloads again by itself.
+  static const FullBackupConfig backupConfig = FullBackupConfig(
+    appName: appName,
+    // Songs downloaded into the app's folder can make a backup big: keep
+    // fewer than the package's 10.
+    keep: 3,
+    excluded: {
+      // Kept server songs: ServerOfflineStore downloads them again from its
+      // rules (server_offline.json, which is backed up).
+      'server_music',
+      // Subscriptions videos cached for a week (VideoAudioCache).
+      'video_cache',
+      // Album art fetched for the home screen widget.
+      'widget_art',
+    },
+  );
+
+  /// The full backup's texts: the package's English ones in the app's date
+  /// format, named apart from Settings → Backup's own "Back up now" and
+  /// "Restore from backup" (the library/playlists JSON backup).
+  static const FullBackupStrings backupStrings = FullBackupStrings(
+    restoreTitle: 'Restore everything from a backup',
+    dateTime: formatTimerDateTime,
+  );
+
+  /// Files only an install that was used has (in the documents folder):
+  /// without them [FullBackup.offerRestore] may offer a restore. Best Music
+  /// keeps its data in files, not SharedPreferences, so the package's own
+  /// "new install" test (no preferences) would be true for every install.
+  @visibleForTesting
+  static const List<String> dataFiles = [
+    'settings.json',
+    'music_library.json',
+    'music_playlists.json',
+    'youtube_feed.json',
+    'mp3_downloads.json',
+    'play_history.json',
+    'music_resume.json',
+    'tasks.json',
+    'music_server.json',
+  ];
+
+  /// Whether this install already has data of its own. Call before
+  /// anything is written at start (main() does, before Config.load).
+  static Future<bool> hasAppData({Directory? documents}) async {
+    try {
+      final dir = documents ?? await getApplicationDocumentsDirectory();
+      return dataFiles.any((name) => File('${dir.path}/$name').existsSync());
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// The running app's [UpdateConfig].
   static UpdateConfig config({
@@ -85,6 +152,7 @@ class AppUpdates {
     ApkDownloader? downloader,
     UpdatePlatform? platform,
     DateTime Function()? clock,
+    Future<void> Function(UpdateResult update, String apkPath)? beforeInstall,
   }) =>
       UpdateController(
         config: config(version: version, build: build, channel: channel),
@@ -95,21 +163,40 @@ class AppUpdates {
         strings: strings,
         log: _log,
         clock: clock,
+        beforeInstall: beforeInstall,
       );
 
-  /// Before the first frame: builds [controller] (reads the version,
-  /// migrates the stored state, no network). The seams are for tests.
+  /// Before the first frame: builds [controller] and [backup] (reads the
+  /// version, migrates the stored state, no network). [hadAppData] is
+  /// [hasAppData] from before the app loaded anything: an install with data
+  /// is never offered a restore. The seams are for tests.
   static Future<UpdateController> create({
     SharedPreferences? prefs,
     UpdateHttp? http,
     ApkDownloader? downloader,
     UpdatePlatform? platform,
     DateTime Function()? clock,
+    bool hadAppData = true,
   }) async {
     await Config.ensureVersionLoaded();
     final version = Config.version;
     final build = int.tryParse(Config.buildNumber) ?? 0;
     prefs ??= await SharedPreferences.getInstance();
+    platform ??= UpdatePlatform();
+    if (hadAppData && !(prefs.getBool(FullBackup.offeredKey) ?? false)) {
+      await prefs.setBool(FullBackup.offeredKey, true);
+    }
+    final b = FullBackup(
+      config: backupConfig,
+      version: version,
+      build: build,
+      prefs: prefs,
+      platform: platform,
+      log: (event, data) => LogService.add('backup', '$event $data'),
+    );
+    // Before the legacy migration removes the old update keys.
+    await b.init();
+    backup = b;
     await migrateLegacyState(prefs, version: version, build: build);
     final c = controllerFor(
       version: version,
@@ -119,6 +206,7 @@ class AppUpdates {
       downloader: downloader,
       platform: platform,
       clock: clock,
+      beforeInstall: b.beforeUpdate,
     );
     await c.init();
     return controller = c;
@@ -127,7 +215,11 @@ class AppUpdates {
   /// After the first frame: Android's install time, the check when due,
   /// polling and the resume check. [context] is above every screen (the
   /// navigator's).
-  static void start(BuildContext context) => controller?.start(context);
+  static void start(BuildContext context) {
+    controller?.start(context);
+    // A new install (no data yet): once, "Restore a backup?".
+    unawaited(backup?.offerRestore(context, strings: backupStrings));
+  }
 
   // ── State from before the package (Best Music 0.3.27 and older) ──────
 

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:best_music/config.dart';
 import 'package:best_music/services/app_updates.dart';
@@ -25,6 +26,7 @@ void main() {
   tearDown(() {
     AppUpdates.controller?.dispose();
     AppUpdates.controller = null;
+    AppUpdates.backup = null;
   });
 
   test('its own public repo, tag prefix music-v, every 15 minutes', () {
@@ -82,4 +84,52 @@ void main() {
     expect(c.lastCheck, DateTime(2026, 10, 11));
     Config.resetVersionForTest();
   });
+  test('full backup: Download/Best Music, 3 kept, re-downloadable copies out',
+      () {
+    const c = AppUpdates.backupConfig;
+    expect(c.appName, 'Best Music');
+    expect(c.keep, 3);
+    expect(c.excluded, {'server_music', 'video_cache', 'widget_art'});
+    expect(c.excludedPrefixes, isEmpty);
+  });
+
+  test('hasAppData: any of the app files in the documents folder',
+      () async {
+    final dir = await Directory.systemTemp.createTemp('bm_has_data');
+    addTearDown(() => dir.delete(recursive: true));
+    expect(await AppUpdates.hasAppData(documents: dir), isFalse);
+    File('${dir.path}/unrelated.txt').writeAsStringSync('x');
+    expect(await AppUpdates.hasAppData(documents: dir), isFalse);
+    File('${dir.path}/music_library.json').writeAsStringSync('{}');
+    expect(await AppUpdates.hasAppData(documents: dir), isTrue);
+  });
+
+  for (final hadAppData in [true, false]) {
+    test('create() builds the full backup; restore offered: ${!hadAppData}',
+        () async {
+      PackageInfo.setMockInitialValues(
+        appName: 'Best Music',
+        packageName: 'com.mfficiency.best_music',
+        version: '0.3.71',
+        buildNumber: '500',
+        buildSignature: '',
+      );
+      Config.resetVersionForTest();
+      SharedPreferences.setMockInitialValues({});
+      await AppUpdates.create(
+          http: github.http,
+          downloader: downloader,
+          platform: UpdatePlatform(supported: true),
+          hadAppData: hadAppData);
+      final backup = AppUpdates.backup!;
+      expect(backup.config, same(AppUpdates.backupConfig));
+      expect(backup.folder, 'Download/Best Music/Backups');
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool(FullBackup.offeredKey), hadAppData ? isTrue : isNull);
+      expect(backup.looksFresh, !hadAppData,
+          reason: 'an install with data is never offered a restore '
+              '(Best Music keeps nothing in SharedPreferences)');
+      Config.resetVersionForTest();
+    });
+  }
 }

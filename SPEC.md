@@ -1899,6 +1899,33 @@ dialog → snackbar with the result), "Automatic backup" Off/Daily/Weekly
 away), and "Backup folder". Tests: `test/music/music_backup_service_test.dart`,
 `test/music/music_settings_page_test.dart`.
 
+**Full backup (0.3.71, Android only)** — the updates package's `FullBackup`
+(`packages/mfficiency_updates` 1.6.0, README "Full backup"), built in
+`AppUpdates.create` as `AppUpdates.backup` with `AppUpdates.backupConfig`:
+one `.tar.gz` of the whole documents, support and app-specific external
+folders plus the SharedPreferences, in `Download/Best Music/Backups`
+(MediaStore; survives uninstalling, which matters for the reinstall away from
+the debug-signed 0.3.19-and-older builds). Made before every update
+(`UpdateController(beforeInstall: backup.beforeUpdate)`; a failure is logged
+and the install goes on) and from Settings → Backup ("Back up everything",
+"Restore everything from a backup", above the JSON backup's tiles). So it has
+every JSON store, `settings.json` and `music_server.json` (**plaintext**
+Subsonic password and Claude key), `tasks.json`, lyrics, `trim_backups/`
+(7 days) and MP3s/audiobooks downloaded into the app's own external folder
+(the default download folder; uninstalling would delete them). Excluded
+(`excluded`), because the app fetches them again: `server_music/` (kept
+server songs, re-downloaded from `server_offline.json`'s rules),
+`video_cache/` (Subscriptions), `widget_art/`. Not in it: the home widget's
+native `HomeWidgetPreferences` (rewritten by the player) and songs in
+user-chosen public folders. Songs in the app folder can make a file big, so
+`keep: 3`. Restore asks for a file, checks the applicationId, backs up the
+current data first, replaces everything and restarts. A new install gets a
+one-time "Restore a backup?" (`AppUpdates.start` → `offerRestore`); since Best
+Music keeps nothing in SharedPreferences, `main()` checks
+`AppUpdates.hasAppData()` (any of `AppUpdates.dataFiles` in documents) before
+`Config.load` and an install with data is marked as offered. Tests:
+`test/update/app_updates_test.dart`, `packages/mfficiency_updates/test/backup_test.dart`.
+
 ### Platform: widgets, share, "Play out loud?" (moved from BestToDo's §8/§9)
 
 These were part of BestToDo's widget and Android-platform chapters while Best Music was a

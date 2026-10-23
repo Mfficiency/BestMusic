@@ -982,6 +982,11 @@ class _MusicSettingsPageState extends State<MusicSettingsPage> {
   List<Widget> _backupTiles() {
     final folderChosen = Config.autoBackupDirectory.isNotEmpty;
     return [
+      // Everything (all files, settings, Wishlist) in one file in
+      // Download/Best Music/Backups, kept when the app is uninstalled, also
+      // made before every update (the updates package; Android only).
+      if (AppUpdates.backup case final backup?) FullBackupTiles(
+            backup: backup, strings: AppUpdates.backupStrings),
       ListTile(
         leading: const Icon(Icons.backup_outlined),
         title: const Text('Back up now'),

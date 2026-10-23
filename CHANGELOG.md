@@ -5,6 +5,9 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.70] - 2026-10-23
+- New in Tools: Audiobooks. Search free audiobooks from LibriVox by title or author, open one to see what it's about and its chapters, then download the whole book or single chapters. Each book goes into its own folder (Audiobooks/Author - Title) in your MP3 Downloader folder, one MP3 per chapter, numbered so they play in order. Downloads keep going when you leave the page, and downloading a book again picks up the chapters still missing.
+
 ## [0.3.69] - 2026-10-20
 - New: Best Music Watch, a Wear OS app for the watch (made for the Galaxy Watch6 Classic). It shows what the phone plays, with play/pause, previous and next, and turning the bezel changes the phone's volume. It says when the phone is out of reach and shows the last song it saw. Install it from the wear-music release next to this one (see wear/README.md); the phone app itself only gained what the watch needs to talk to it.
 

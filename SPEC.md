@@ -2581,3 +2581,31 @@ Release: `tool\build.ps1 release` builds the watch after the phone release
 as its own release `wear-music-v…` (prerelease off main, never Latest). The phone updater
 (`matchesTagPrefix`, prefix `music-v`) and the same-code lookup (`^music-v…`) never see those
 tags. A failing watch build is only a warning (`WEAR_BUILD_RESULT`); `WEAR=0` skips it.
+
+### 10.6ak Audiobooks (Best Music 0.3.70)
+Tools → Audiobooks (`lib/ui/audiobooks_page.dart`, `lib/services/audiobook_service.dart`):
+search and download free audiobooks. The source is LibriVox (public-domain books read by
+volunteers). Its JSON API (`https://librivox.org/api/feed/audiobooks/`, `format=json`,
+`extended=1` for the chapter list) needs no key, and the MP3s are on archive.org.
+
+- **Search:** `AudiobookService.search` asks for `title=<query>` and `author=<last word of the
+  query>` (LibriVox matches authors by last name) at the same time, merges the two lists
+  without duplicates, and drops books with no chapters (still being recorded). A 404
+  ("Audiobooks could not be found") means no results; any other error is shown on the page.
+  Titles and descriptions come as HTML and are turned into plain text; `http://` links become
+  `https://`.
+- **Page:** a search field, then the downloads list, then the results (title; author ·
+  length · chapters · language). Tap a book for its description and chapters. *Download
+  book* (or the download button on a result) queues every chapter, and a chapter's own
+  button queues just that one.
+- **Downloads:** `AudiobookDownloadManager` is an app-level queue like the MP3 Downloader's,
+  so leaving the page doesn't stop a download. It runs one book at a time, chapter by
+  chapter, into `<Config.mp3DownloadFolder or defaultDownloadFolder()>/Audiobooks/<Author -
+  Title>/` as `NN - <chapter title>.mp3` (numbered to sort, with leading zeros sized to the
+  chapter count). Each chapter is written to a `.part` file and renamed when complete, so a
+  failed or cancelled chapter leaves nothing behind. Chapters already in the folder are
+  skipped, so downloading a book again only fetches what's missing. Each saved file goes
+  through `MediaScannerService.scanFile`. Progress is shown per book (chapters done plus the
+  current chapter's share) with `RemainingTimeText`; a job can be cancelled, and finished
+  jobs can be cleared. The list is kept in memory only, not saved.
+- Tests: `test/tools/audiobook_test.dart` (fake LibriVox through `MockClient`).

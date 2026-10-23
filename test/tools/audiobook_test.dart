@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
-/// Tools → Audiobooks (SPEC.md §10.6aj): LibriVox search and the
+/// Tools → Audiobooks (SPEC.md §10.6ak): LibriVox search and the
 /// chapter-by-chapter download queue, against a fake LibriVox.
 void main() {
   final service = AudiobookService.instance;

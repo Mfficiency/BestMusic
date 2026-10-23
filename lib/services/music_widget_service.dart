@@ -10,6 +10,8 @@ import 'package:path_provider/path_provider.dart';
 import '../config.dart';
 import '../models/track.dart';
 import 'music_audio_handler.dart';
+import 'music_playlist_service.dart';
+import 'wear_now_playing.dart';
 
 /// Bridges live playback state to the three Music home-screen widgets
 /// (1×2, 1×3 and 2×3, styled after Obsidian Music's media card).
@@ -20,7 +22,8 @@ import 'music_audio_handler.dart';
 /// `MusicPlayGuardActivity`, which asks "Play out loud?" first when
 /// nothing is connected. This service keeps their title, cover and play/pause
 /// icon in sync with what's actually playing, and hands that activity the
-/// "Ask before playing out loud" setting ([pushConfirmSetting]).
+/// "Ask before playing out loud" setting ([pushConfirmSetting]). The Wear OS
+/// watch app gets the same now-playing state ([WearNowPlaying]).
 class MusicWidgetService {
   MusicWidgetService._();
 
@@ -34,6 +37,11 @@ class MusicWidgetService {
   /// reads itself.
   static const String artFileKey = 'music_widget_art_file';
   static const String audioFileKey = 'music_widget_audio_file';
+
+  /// Whether the playing song is in Favorites / Liked songs (the 2×3
+  /// widget's heart and thumbs-up).
+  static const String favoriteKey = 'music_widget_favorite';
+  static const String likedKey = 'music_widget_liked';
 
   /// URI scheme/host the widgets use for taps that should open the app
   /// (their transport buttons instead send real media-button broadcasts —
@@ -55,6 +63,8 @@ class MusicWidgetService {
     unawaited(pushConfirmSetting());
     handler.mediaItem.listen((_) => _sync(handler));
     handler.playbackState.listen((_) => _sync(handler));
+    // The 2×3 widget's heart and thumbs-up follow the playlists.
+    MusicPlaylistService.instance.playlists.addListener(() => _sync(handler));
   }
 
   /// Where the native play guard reads "Ask before playing out loud".
@@ -75,7 +85,18 @@ class MusicWidgetService {
     try {
       await _ready();
       final item = handler.mediaItem.valueOrNull;
-      final playing = handler.playbackState.valueOrNull?.playing ?? false;
+      final state = handler.playbackState.valueOrNull;
+      final playing = state?.playing ?? false;
+      // The Wear OS watch app gets the same state (it never waits on this).
+      WearNowPlaying.publish(WearNowPlayingState(
+        hasTrack: item != null,
+        title: item?.title ?? '',
+        artist: item?.artist ?? '',
+        playing: playing,
+        positionMs: item == null ? 0 : (state?.position.inMilliseconds ?? 0),
+        durationMs: item?.duration?.inMilliseconds ?? 0,
+        at: DateTime.now().millisecondsSinceEpoch,
+      ));
       await HomeWidget.saveWidgetData<String>(
           'music_widget_title', item?.title ?? '');
       await HomeWidget.saveWidgetData<String>(
@@ -83,6 +104,11 @@ class MusicWidgetService {
       await HomeWidget.saveWidgetData<bool>('music_widget_playing', playing);
       await HomeWidget.saveWidgetData<bool>(
           'music_widget_has_track', item != null);
+      final trackId = handler.currentTrack?.id;
+      await HomeWidget.saveWidgetData<bool>(favoriteKey,
+          trackId != null && MusicPlaylistService.instance.isFavorite(trackId));
+      await HomeWidget.saveWidgetData<bool>(likedKey,
+          trackId != null && MusicPlaylistService.instance.isLiked(trackId));
       await HomeWidget.saveWidgetData<bool>(
           confirmSpeakerKey, Config.musicConfirmSpeakerPlay);
       final art = artSourceFor(handler.currentTrack, item?.artUri);

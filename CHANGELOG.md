@@ -5,6 +5,21 @@ Best Music's own changelog. Until 0.3.30 Best Music was built from the BestToDo 
 still recorded in BestToDo's `CHANGELOG.md` (search it for "Music"/"Best Music"); nothing has
 been copied over here.
 
+## [0.3.69] - 2026-10-20
+- New: Best Music Watch, a Wear OS app for the watch (made for the Galaxy Watch6 Classic). It shows what the phone plays, with play/pause, previous and next, and turning the bezel changes the phone's volume. It says when the phone is out of reach and shows the last song it saw. Install it from the wear-music release next to this one (see wear/README.md); the phone app itself only gained what the watch needs to talk to it.
+
+## [0.3.68] - 2026-10-20
+- Shorten song: a new listen bar lets you scroll through the whole song to find the start and end quickly. Drag it, jump 5 seconds back or forward, play from there, then tap "Start here" or "End here". Dragging the start or end handle moves the bar there too.
+
+## [0.3.67] - 2026-10-20
+- Now Playing: the Info tab (tap ⓘ) has a "Shorten song" button next to "Edit info". Shorten song now moves the start and end in steps of 0.1 second, and the slider snaps to tenths of a second.
+
+## [0.3.66] - 2026-10-20
+- Music 2×3 widget: dislike, like and heart buttons at the top right. Dislike marks the song disliked and skips it, like puts it in Liked songs, and the heart adds it to or removes it from Favorites. The thumbs-up and heart light up when the song is already liked or a favorite. They work while music is playing (or paused), without opening the app.
+
+## [0.3.65] - 2026-10-19
+- Music 1×2 widget: the song's name on top with previous, play/pause and next under it. Tapping the name just opens the app; nothing starts playing.
+
 ## [0.3.64] - 2026-10-19
 - Home-screen widgets redone in the style of Obsidian Music, in three sizes: Music 1×2 (play/pause with the song and artist), Music 1×3 (cover, song, play/pause and next) and Music 2×3 (the cover fills the card, with previous, play/pause and next underneath). The old widgets were cramped and cut off their buttons; ones you already placed turn into the new 1×2 and 1×3 by themselves.
 

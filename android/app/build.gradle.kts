@@ -121,6 +121,12 @@ dependencies {
     // shuffle. (The in-app update installer is the mfficiency_updates
     // plugin's; it needs no FileProvider.)
     implementation("androidx.core:core:1.13.1")
+    // MediaBrowserCompat/MediaControllerCompat for the widget's like /
+    // dislike / heart buttons (same version audio_service uses).
+    implementation("androidx.media:media:1.7.0")
+    // Wearable Data Layer for the Wear OS watch app (wear/): now playing to
+    // the watch, its buttons back (WearSync, WearCommandService).
+    implementation("com.google.android.gms:play-services-wearable:18.2.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.10.3")

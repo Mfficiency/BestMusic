@@ -87,6 +87,25 @@ void main() {
     expect(MusicLibraryService.instance.byId(id)!.upSwipeCount, 2);
   });
 
+  test('widget actions: like works once, the heart toggles Favorites',
+      () async {
+    await MusicPlaylistService.instance.load();
+    final handler = handlerWithQueue();
+    MusicLibraryService.instance.tracks.value = handler.currentQueueTracks;
+    const id = 'local:/fake/a.mp3';
+
+    await handler.customAction(MusicAudioHandler.widgetLikeAction);
+    await handler.customAction(MusicAudioHandler.widgetLikeAction);
+    expect(MusicPlaylistService.instance.isLiked(id), isTrue);
+    // A second tap on an already liked song isn't another swipe up.
+    expect(MusicLibraryService.instance.byId(id)!.upSwipeCount, 1);
+
+    await handler.customAction(MusicAudioHandler.widgetFavoriteAction);
+    expect(MusicPlaylistService.instance.isFavorite(id), isTrue);
+    await handler.customAction(MusicAudioHandler.widgetFavoriteAction);
+    expect(MusicPlaylistService.instance.isFavorite(id), isFalse);
+  });
+
   group('repeat', () {
     test('the button cycles off → all → one → off', () {
       expect(MusicRepeatMode.off.next, MusicRepeatMode.all);

@@ -102,6 +102,8 @@ void main() {
                 matching: find.byType(Scrollable))
             .first);
     expect(find.text('Edit info'), findsOneWidget);
+    // A phone mp3 can be shortened right from here.
+    expect(find.text('Shorten song'), findsOneWidget);
 
     // ⓘ again: back to the big view; the tab is remembered.
     await tester.tap(find.byTooltip('Hide track info'));

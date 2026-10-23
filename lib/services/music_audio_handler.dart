@@ -956,6 +956,31 @@ class MusicAudioHandler extends BaseAudioHandler with SeekHandler {
     await MusicPlaylistService.instance.markLiked(track.id);
   }
 
+  /// Custom actions the 2×3 home-screen widget's buttons send through the
+  /// media session (`MusicWidgetActionReceiver.kt`).
+  static const String widgetLikeAction = 'widget_like';
+  static const String widgetDislikeAction = 'widget_dislike';
+  static const String widgetFavoriteAction = 'widget_favorite';
+
+  @override
+  Future<dynamic> customAction(String name,
+      [Map<String, dynamic>? extras]) async {
+    final track = currentTrack;
+    switch (name) {
+      case widgetLikeAction:
+        // Like Now Playing's swipe up; liking twice changes nothing.
+        if (track != null && !MusicPlaylistService.instance.isLiked(track.id)) {
+          await swipeUpCurrent();
+        }
+        return null;
+      case widgetDislikeAction:
+        return dislikeCurrentAndSkip();
+      case widgetFavoriteAction:
+        return favoriteCurrent();
+    }
+    return super.customAction(name, extras);
+  }
+
   /// Swipe-down (or thumbs-down) on Now Playing: counts a swipe down,
   /// marks the current track disliked (so it comes up far less in future
   /// shuffles) and moves on right away — not counted as a plain skip too.

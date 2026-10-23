@@ -305,7 +305,8 @@ class TrackStatsRows extends StatelessWidget {
 
 /// Now Playing's Info tab (tap ⓘ): the playing song's info, read-only and
 /// scrollable — title, artist, album, genre, year, BPM, tags, then
-/// [TrackStatsRows] — with "Edit info" opening [TrackMetadataPage]. A
+/// [TrackStatsRows] — with "Edit info" opening [TrackMetadataPage] and, for
+/// a phone song in a format that can be cut, "Shorten song" ([TrimSongPage]). A
 /// Subscriptions video (not a library song) shows its title and channel.
 class TrackInfoView extends StatelessWidget {
   const TrackInfoView({super.key, required this.trackId, this.fallback});
@@ -355,15 +356,25 @@ class TrackInfoView extends StatelessWidget {
             if (track.tags.isNotEmpty) _infoRow('Tags', track.tags.join(', ')),
             if (track.filePath != null)
               _infoRow('File name', TrackFileActions.baseNameOf(track)),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                icon: const Icon(Icons.edit_outlined),
-                label: const Text('Edit info'),
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => TrackMetadataPage(trackId: track.id),
-                )),
-              ),
+            Wrap(
+              spacing: 8,
+              children: [
+                TextButton.icon(
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Edit info'),
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => TrackMetadataPage(trackId: track.id),
+                  )),
+                ),
+                if (TrackTrimmer.canTrim(track))
+                  TextButton.icon(
+                    icon: const Icon(Icons.content_cut),
+                    label: const Text('Shorten song'),
+                    onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => TrimSongPage(trackId: track.id))),
+                  ),
+              ],
             ),
             const Divider(height: 16),
             TrackStatsRows(track: track),

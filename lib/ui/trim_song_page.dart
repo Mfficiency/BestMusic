@@ -17,9 +17,11 @@ String formatTrimTime(Duration d) {
   return '$m:${s.toString().padLeft(2, '0')}.$tenth';
 }
 
-/// "Shorten song": pick a start and an end (slider plus ±1 s steps,
-/// previews of both edges), then [TrackTrimmer.trim] cuts the file itself
-/// — in place with Undo, or as a new song next to it.
+/// "Shorten song": pick a start and an end to the tenth of a second
+/// (slider snapping to 0.1 s plus ±0.1 s steps, previews of both edges, and
+/// a listen bar to scroll through the song and set an edge where you hear
+/// it), then [TrackTrimmer.trim] cuts the file itself — in place with Undo,
+/// or as a new song next to it.
 class TrimSongPage extends StatefulWidget {
   const TrimSongPage({super.key, required this.trackId});
 
@@ -37,9 +39,30 @@ class _TrimSongPageState extends State<TrimSongPage> {
   bool _keepOriginal = false;
   bool _working = false;
   ja.AudioPlayer? _preview;
+  StreamSubscription<Duration>? _positionSub;
+  StreamSubscription<bool>? _playingSub;
 
-  static const _step = Duration(seconds: 1);
+  /// Where the listen bar is (in the whole song), and whether it plays.
+  Duration _cursor = Duration.zero;
+  bool _playing = false;
+
+  /// While the listen bar is dragged, the player's position doesn't move it.
+  bool _scrubbing = false;
+
+  /// What [_preview] has loaded: the whole song, or a clip starting at
+  /// [_clipStart] (its positions count from there).
+  bool _wholeLoaded = false;
+  Duration _clipStart = Duration.zero;
+
+  /// What ± moves an edge by, and what the slider snaps to.
+  static const _step = Duration(milliseconds: 100);
+
+  /// The shortest song Shorten leaves.
+  static const _minKeep = Duration(seconds: 1);
   static const _previewLength = Duration(seconds: 5);
+
+  /// What the listen bar's ⏪/⏩ jump by.
+  static const _jump = Duration(seconds: 5);
 
   Track? get _track => MusicLibraryService.instance.byId(widget.trackId);
 
@@ -51,6 +74,8 @@ class _TrimSongPageState extends State<TrimSongPage> {
 
   @override
   void dispose() {
+    _positionSub?.cancel();
+    _playingSub?.cancel();
     _preview?.dispose();
     super.dispose();
   }
@@ -75,21 +100,53 @@ class _TrimSongPageState extends State<TrimSongPage> {
 
   void _setStart(Duration d) {
     final length = _length!;
-    setState(() => _start = _clamp(d, Duration.zero, _end - _step));
+    setState(() => _start = _clamp(d, Duration.zero, _end - _minKeep));
     assert(_start <= length);
   }
 
   void _setEnd(Duration d) =>
-      setState(() => _end = _clamp(d, _start + _step, _length!));
+      setState(() => _end = _clamp(d, _start + _minKeep, _length!));
 
   static Duration _clamp(Duration d, Duration lo, Duration hi) =>
       d < lo ? lo : (d > hi ? hi : d);
+
+  /// [ms] rounded to the nearest 0.1 s, within the song.
+  Duration _snap(double ms) {
+    final step = _step.inMilliseconds;
+    final snapped = Duration(milliseconds: (ms / step).round() * step);
+    return snapped > _length! ? _length! : snapped;
+  }
+
+  ja.AudioPlayer _player() {
+    final existing = _preview;
+    if (existing != null) return existing;
+    final player = _preview = ja.AudioPlayer();
+    _positionSub = player.positionStream.listen((p) {
+      if (!mounted || _scrubbing || !_playing) return;
+      final at = (_wholeLoaded ? Duration.zero : _clipStart) + p;
+      setState(() => _cursor = at > _length! ? _length! : at);
+    });
+    _playingSub = player.playingStream.listen((playing) {
+      if (mounted) setState(() => _playing = playing);
+    });
+    return player;
+  }
+
+  void _playError(Object e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("Couldn't play: $e")));
+    }
+  }
 
   Future<void> _play(Duration from, Duration to) async {
     final path = _track?.filePath;
     if (path == null) return;
     try {
-      final player = _preview ??= ja.AudioPlayer();
+      final player = _player();
+      _wholeLoaded = false;
+      _clipStart = from;
+      setState(() => _cursor = from);
       await player.setAudioSource(
           ja.ClippingAudioSource(
             child: ja.AudioSource.uri(Uri.file(path)),
@@ -99,11 +156,36 @@ class _TrimSongPageState extends State<TrimSongPage> {
           preload: true);
       unawaited(player.play());
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Couldn't play: $e")));
-      }
+      _playError(e);
     }
+  }
+
+  /// The listen bar's play/pause: plays the whole song from [_cursor].
+  Future<void> _toggleListen() async {
+    final path = _track?.filePath;
+    if (path == null) return;
+    try {
+      final player = _player();
+      if (_playing) {
+        await player.pause();
+        return;
+      }
+      if (!_wholeLoaded) {
+        await player.setAudioSource(ja.AudioSource.uri(Uri.file(path)),
+            preload: true);
+        _wholeLoaded = true;
+      }
+      await player.seek(_cursor);
+      unawaited(player.play());
+    } catch (e) {
+      _playError(e);
+    }
+  }
+
+  /// Moves the listen bar to [d]; the song follows if it's playing.
+  void _moveCursor(Duration d) {
+    setState(() => _cursor = _clamp(d, Duration.zero, _length!));
+    if (_playing && _wholeLoaded) unawaited(_preview?.seek(_cursor));
   }
 
   Future<void> _shorten() async {
@@ -166,17 +248,22 @@ class _TrimSongPageState extends State<TrimSongPage> {
                       onChanged: _working
                           ? null
                           : (v) => setState(() {
-                                _start =
-                                    Duration(milliseconds: v.start.round());
-                                _end = Duration(milliseconds: v.end.round());
-                                if (_end - _start < _step) {
-                                  _end = _start + _step > length
+                                final oldStart = _start;
+                                _start = _snap(v.start);
+                                _end = _snap(v.end);
+                                if (_end - _start < _minKeep) {
+                                  _end = _start + _minKeep > length
                                       ? length
-                                      : _start + _step;
-                                  _start = _end - _step;
+                                      : _start + _minKeep;
+                                  _start = _end - _minKeep;
+                                }
+                                // The listen bar follows the dragged edge.
+                                if (!_playing) {
+                                  _cursor = _start != oldStart ? _start : _end;
                                 }
                               }),
                     ),
+                    _listenBar(length),
                     _edgeRow(
                       label: 'Start',
                       value: _start,
@@ -237,6 +324,84 @@ class _TrimSongPageState extends State<TrimSongPage> {
     );
   }
 
+  /// Scroll through the whole song (drag, ⏪/⏩ 5 s, play/pause) and set
+  /// the start or the end where the bar is.
+  Widget _listenBar(Duration length) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+        child: Column(
+          children: [
+            Slider(
+              key: const ValueKey('trimListen'),
+              value: _cursor.inMilliseconds
+                  .clamp(0, length.inMilliseconds)
+                  .toDouble(),
+              max: length.inMilliseconds.toDouble(),
+              onChangeStart: (_) => _scrubbing = true,
+              onChanged:
+                  _working ? null : (v) => setState(() => _cursor = _snap(v)),
+              onChangeEnd: (v) {
+                _scrubbing = false;
+                _moveCursor(_snap(v));
+              },
+            ),
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.replay_5),
+                  tooltip: 'Back 5 seconds',
+                  onPressed:
+                      _working ? null : () => _moveCursor(_cursor - _jump),
+                ),
+                IconButton(
+                  icon: Icon(_playing ? Icons.pause : Icons.play_arrow),
+                  tooltip: _playing ? 'Pause' : 'Listen from here',
+                  onPressed: _working ? null : _toggleListen,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.forward_5),
+                  tooltip: 'Forward 5 seconds',
+                  onPressed:
+                      _working ? null : () => _moveCursor(_cursor + _jump),
+                ),
+                const SizedBox(width: 8),
+                Text('${formatTrimTime(_cursor)} / ${formatTrimTime(length)}',
+                    key: const ValueKey('trimCursor')),
+              ],
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _working
+                        ? null
+                        : () =>
+                            _setStart(_snap(_cursor.inMilliseconds.toDouble())),
+                    icon: const Icon(Icons.first_page),
+                    label: const Text('Start here'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _working
+                        ? null
+                        : () =>
+                            _setEnd(_snap(_cursor.inMilliseconds.toDouble())),
+                    icon: const Icon(Icons.last_page),
+                    label: const Text('End here'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _edgeRow({
     required String label,
     required Duration value,
@@ -250,13 +415,13 @@ class _TrimSongPageState extends State<TrimSongPage> {
         SizedBox(width: 48, child: Text(label)),
         IconButton(
           icon: const Icon(Icons.remove),
-          tooltip: '$label 1 second earlier',
+          tooltip: '$label 0.1 second earlier',
           onPressed: _working ? null : onMinus,
         ),
         Text(formatTrimTime(value), key: ValueKey('trim$label')),
         IconButton(
           icon: const Icon(Icons.add),
-          tooltip: '$label 1 second later',
+          tooltip: '$label 0.1 second later',
           onPressed: _working ? null : onPlus,
         ),
         const Spacer(),

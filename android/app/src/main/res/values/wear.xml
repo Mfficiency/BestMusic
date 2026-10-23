@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tells the Wear OS watch app (wear/ in this repo) that this phone runs a
+     Best Music it can talk to. Kept by resource shrinking: only Play
+     services reads it. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@array/android_wear_capabilities">
+    <string-array name="android_wear_capabilities" translatable="false">
+        <item>best_music_phone</item>
+    </string-array>
+</resources>

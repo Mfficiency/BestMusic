@@ -2486,10 +2486,18 @@ Keep original: `<name> (short).<ext>` (or `(short 2)`…) becomes a new library 
 "<title> (short)" with fresh counters. `undo` moves the original back (or deletes the copy) and
 restores the library entry.
 
-`lib/ui/trim_song_page.dart` (`TrimSongPage`), from a song's ⋮ menu ("Shorten song") and the
-Track info app bar (scissors, tooltip "Shorten song"): the exact length read from the file, a
-`RangeSlider` (min 1 s kept), ±1 s buttons per edge, previews of the first/last 5 s through a
-page-local `just_audio` player (`ClippingAudioSource`), "Save as a new song" switch, Shorten →
+`lib/ui/trim_song_page.dart` (`TrimSongPage`), from a song's ⋮ menu ("Shorten song"), the
+Track info app bar (scissors, tooltip "Shorten song") and (0.3.67) a "Shorten song" button next
+to "Edit info" on Now Playing's Info tab (`TrackInfoView`, only when `canTrim`): the exact
+length read from the file, a `RangeSlider` snapping to 0.1 s (min 1 s kept), ±0.1 s buttons
+per edge (tooltips "Start 0.1 second earlier/later", "End …"; ±1 s until 0.3.67), previews of the first/last 5 s through a
+page-local `just_audio` player (`ClippingAudioSource`); (0.3.68) a listen bar under the range
+slider to scroll through the song: a `Slider` (key `trimListen`) over the whole song, snapping to
+0.1 s, with "m:ss.t / m:ss.t", ⏪/⏩ 5 s (tooltips "Back 5 seconds"/"Forward 5 seconds"),
+play/pause of the whole file from the bar ("Listen from here"/"Pause"; dragging seeks while it
+plays, the bar follows playback and the edge previews), and "Start here"/"End here" buttons that
+set that edge to the bar (keeping 1 s). Dragging a range-slider edge moves the bar to it; "Save as
+a new song" switch, Shorten →
 snackbar "Shortened to m:ss.t" with Undo. Tests: `test/music/audio_trimmer_test.dart` with
 ffmpeg-made fixtures in `test/fixtures/audio/` (CBR and VBR MP3, AAC M4A, WAV); the trimmed
 outputs were checked with ffprobe/ffmpeg (length, tags, error-free decode) when written.
@@ -2504,13 +2512,25 @@ with a dark icon (`widget_play_bg`, `ic_widget_play_dark`/`ic_widget_pause_dark`
 round skip buttons (`widget_button_bg`). Sizes are rows × columns, given as
 `targetCellWidth`/`targetCellHeight` with `minWidth`/`minHeight` = 70 × cells − 30 dp:
 
-- **Music 1×2** — `MusicMiniWidgetProvider`, `music_mini_widget_layout`: play/pause, title,
-  artist.
+- **Music 1×2** — `MusicMiniWidgetProvider`, `music_mini_widget_layout`: the title (one
+  line, centred) over previous / play-pause / next (30/34/30 dp). Since 0.3.65; in 0.3.64 it
+  was play/pause beside title and artist. Tapping the title (or the card) only opens the app
+  — `MainActivity` starts nothing for a widget launch.
 - **Music 1×3** — `MusicControlsWidgetProvider`, `music_controls_widget_layout`: 44 dp cover
   tile (music-note placeholder), title, artist, play/pause, next.
 - **Music 2×3** — `MusicLargeWidgetProvider` (new), `music_large_widget_layout`: the cover
   fills the card under a top-to-bottom dark scrim (`widget_scrim`), "Best Music" at the top,
-  title and artist above a previous / play-pause / next row.
+  title and artist above a previous / play-pause / next row. Since 0.3.66 the top row also has
+  **dislike / like / heart** (34 dp, transparent; thumbs-up blue when the song is in Liked
+  songs, heart filled pink when in Favorites, from `music_widget_liked`/`music_widget_favorite`,
+  which `MusicWidgetService` writes on every sync and whenever the playlists change). There's
+  no media-button key for these, so they're broadcasts to `MusicWidgetActionReceiver.kt`
+  (not exported), which binds `audio_service`'s `AudioService` with a `MediaBrowserCompat`
+  (`androidx.media:media:1.7.0`) and sends the custom action `widget_dislike` /
+  `widget_like` / `widget_favorite` to the session; `MusicAudioHandler.customAction` runs
+  `dislikeCurrentAndSkip` / `swipeUpCurrent` (only when not liked yet, so a second tap doesn't
+  count another swipe) / `favoriteCurrent`. With no running playback session the action is
+  dropped. Tests: `music_audio_handler_test.dart` ("widget actions").
 
 The two old provider class names are kept so placed widgets become the new 1×2/1×3. Why the old
 ones were broken: a 40 dp-tall widget held a title plus a 40 dp button (clipped), and nothing
@@ -2526,3 +2546,38 @@ to `widget_art/<sha1>.img`, older ones deleted; it wins over the embedded pictur
 being downloaded first shows the new song without one. Bitmaps are scaled to ≤ 360 px and
 cached per song. `MusicWidgetService.artSourceFor` picks the source; tested in
 `test/music/music_widget_service_test.dart`.
+
+### 10.6aj Wear OS watch app (Best Music 0.3.69)
+
+A Wear OS companion in `wear/` (Kotlin + Compose for Wear OS, its own Gradle build, not part
+of `android/settings.gradle.kts`; full details, build and install in `wear/README.md`), for the
+Galaxy Watch6 Classic: a remote for the phone's player. One non-scrolling screen: a status line
+("Phone connected" / "Nothing playing" / "Phone not reachable · saved hh:mm" / "Update Best
+Music on your phone", Retry chip when offline), song + artist, a progress bar the watch counts
+on itself, previous / play-pause / next, and the phone's media volume with the rotating bezel
+or − / +. Same applicationId `com.mfficiency.best_music` and signing key as the phone (Data
+Layer requirement); Kotlin package / namespace `com.mfficiency.best_music.wear`. Not standalone.
+
+Phone side (kept tiny, it ships in every phone release):
+- `lib/services/wear_now_playing.dart` — `MusicWidgetService._sync` (where the widgets get
+  their state) calls `WearNowPlaying.publish`, which sends `{hasTrack, title, artist, playing,
+  positionMs, durationMs, at}` through `besttodo/audio_output` → `publishWearNowPlaying` →
+  `WearSync.kt` (DataItem `/music/now_playing`, urgent) only when the song, play state or
+  length changed or the position jumped > 3 s. Fire-and-forget; nothing off Android or in
+  tests. Tests: `test/music/wear_now_playing_test.dart`.
+- `WearCommandService.kt` (`WearableListenerService`, exported, `MESSAGE_RECEIVED` with
+  `pathPrefix=/music/command/`): `play_pause` / `next` / `previous` = the widgets' media-button
+  broadcasts (`MusicWidgetIntents.mediaButtonBroadcast`); play/pause makes
+  `MusicPlayGuardActivity`'s "Play out loud?" check from the widget prefs and, where it would
+  ask, sends `/music/ask_out_loud` to the watch, which asks and answers `play_out_loud`;
+  `volume_up` / `volume_down` (steps as text) = `adjustStreamVolume(STREAM_MUSIC)`, then the
+  level goes back as DataItem `/music/volume`; `sync` publishes the volume only.
+- Capability `best_music_phone` (`res/values/wear.xml`, `tools:keep`); dependency
+  `com.google.android.gms:play-services-wearable:18.2.0`. Phones without Play services or
+  without a watch: the requests just fail and are logged.
+
+Release: `tool\build.ps1 release` builds the watch after the phone release
+(`build/wear/BestMusic-Watch-<x.y.z>-<build>[-channel].apk`) and, with `PUBLISH=1`, publishes it
+as its own release `wear-music-v…` (prerelease off main, never Latest). The phone updater
+(`matchesTagPrefix`, prefix `music-v`) and the same-code lookup (`^music-v…`) never see those
+tags. A failing watch build is only a warning (`WEAR_BUILD_RESULT`); `WEAR=0` skips it.

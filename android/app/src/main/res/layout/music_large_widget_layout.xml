@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 2x3 Music widget (Obsidian Music's media card): cover behind a scrim,
-     title over artist, previous / play-pause / next along the bottom. -->
+     dislike / like / heart top right, title over artist, previous /
+     play-pause / next along the bottom. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/music_widget_container"
     android:layout_width="match_parent"
@@ -18,11 +19,10 @@
 
     <ImageView
         android:id="@+id/music_widget_art_placeholder"
-        android:layout_width="72dp"
-        android:layout_height="72dp"
-        android:layout_gravity="end|top"
-        android:layout_marginTop="8dp"
-        android:layout_marginEnd="8dp"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_gravity="center"
+        android:layout_marginBottom="36dp"
         android:importantForAccessibility="no"
         android:src="@drawable/ic_widget_music_note" />
 
@@ -39,14 +39,58 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:paddingStart="12dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="14dp">
 
-        <TextView
-            android:layout_width="wrap_content"
+        <!-- "Best Music", then dislike / like / heart (top right). -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Best Music"
-            android:textColor="#A6FFFFFF"
-            android:textSize="11sp" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Best Music"
+                android:textColor="#A6FFFFFF"
+                android:textSize="11sp" />
+
+            <ImageButton
+                android:id="@+id/music_widget_dislike"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="Dislike and skip"
+                android:padding="7dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_widget_thumb_down" />
+
+            <ImageButton
+                android:id="@+id/music_widget_like"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_marginStart="4dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="Like"
+                android:padding="7dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_widget_thumb_up" />
+
+            <ImageButton
+                android:id="@+id/music_widget_favorite"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_marginStart="4dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="Add to Favorites"
+                android:padding="6dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_widget_favorite" />
+        </LinearLayout>
 
         <!-- Pushes the song and the buttons to the bottom (a FrameLayout:
              RemoteViews can't inflate a plain View). -->
